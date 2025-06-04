@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マスタ機能が動かない時の解決方法</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .solution { background: #e7f3ff; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #0078d4; }
+        .step { background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 6px; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .success { background: #d1e7dd; padding: 15px; border-radius: 6px; border-left: 4px solid #198754; margin: 15px 0; }
+        .error { background: #f8d7da; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545; margin: 15px 0; }
+        code { background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; }
+        .highlight { background: #0078d4; color: white; padding: 3px 8px; border-radius: 4px; }
+        .checklist { background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 マスタ機能が動かない時の解決方法</h1>
+
+    <div class="error">
+        <strong>❌ よくある問題</strong><br>
+        OneDriveで直接HTMLファイルを開くと、ブラウザのセキュリティ制限でデータ保存機能（LocalStorage）が無効になることがあります。
+    </div>
+
+    <div class="solution">
+        <h2>✅ 解決方法1: ローカルダウンロード（最も確実）</h2>
+        
+        <div class="step">
+            <h3>ステップ 1: ファイルをダウンロード</h3>
+            <ol>
+                <li>OneDriveの共有フォルダにアクセス</li>
+                <li><code>index.html</code> を右クリック</li>
+                <li><span class="highlight">ダウンロード</span> を選択</li>
+                <li>任意の場所に保存（例：デスクトップ）</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>ステップ 2: ローカルファイルを開く</h3>
+            <ol>
+                <li>ダウンロードした <code>index.html</code> をダブルクリック</li>
+                <li>または右クリック → <span class="highlight">プログラムから開く</span> → <span class="highlight">ブラウザ</span></li>
+                <li>ブックマークに登録</li>
+            </ol>
+        </div>
+
+        <div class="success">
+            <strong>✅ これで完全に動作します！</strong><br>
+            マスタ管理、タスク作成、すべての機能が正常に使用できます。
+        </div>
+    </div>
+
+    <div class="solution">
+        <h2>🌐 解決方法2: ブラウザ設定の変更</h2>
+        
+        <div class="step">
+            <h3>Chrome/Edge の場合:</h3>
+            <ol>
+                <li>アドレスバーに <code>chrome://settings/content/cookies</code> を入力</li>
+                <li>「すべてのCookieとサイトデータを許可する」をオン</li>
+                <li>または「サードパーティCookieをブロックする」をオフ</li>
+                <li>ページを再読み込み</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>Firefox の場合:</h3>
+            <ol>
+                <li>アドレスバーに <code>about:config</code> を入力</li>
+                <li><code>dom.storage.enabled</code> を検索</li>
+                <li>値が <code>true</code> になっているか確認</li>
+                <li>ページを再読み込み</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="solution">
+        <h2>🚀 解決方法3: 簡易Webサーバー起動</h2>
+        
+        <div class="step">
+            <h3>Python がインストールされている場合:</h3>
+            <ol>
+                <li>ファイルをダウンロードしてフォルダに保存</li>
+                <li>そのフォルダでコマンドプロンプトを開く</li>
+                <li><code>python -m http.server 8000</code> を実行</li>
+                <li>ブラウザで <code>http://localhost:8000</code> にアクセス</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>Node.js がインストールされている場合:</h3>
+            <ol>
+                <li><code>npm install -g http-server</code> でサーバーをインストール</li>
+                <li>ファイルのフォルダで <code>http-server</code> を実行</li>
+                <li>表示されたアドレスにアクセス</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="checklist">
+        <h2>🔍 問題診断チェックリスト</h2>
+        <h3>以下の症状がある場合は LocalStorage の問題です:</h3>
+        <ul>
+            <li>□ マスタ管理でデータを入力しても保存されない</li>
+            <li>□ タスクを作成しても画面を更新すると消える</li>
+            <li>□ ブラウザの開発者ツールのコンソールにエラーメッセージ</li>
+            <li>□ 「ローカルストレージ」や「プライベートブラウジング」のエラー</li>
+        </ul>
+    </div>
+
+    <div class="warning">
+        <h2>⚠️ 各アクセス方法の特徴</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr style="background: #f8f9fa;">
+                <th style="border: 1px solid #dee2e6; padding: 8px;">アクセス方法</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">データ保存</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">推奨度</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">OneDrive直接アクセス</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">❌ 制限あり</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">❌</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">ローカルダウンロード</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">✅ 完全対応</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">⭐⭐⭐</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">Webサーバー</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">✅ 完全対応</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">⭐⭐</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="success">
+        <h2>🎯 推奨運用方法</h2>
+        <ol>
+            <li><strong>管理者</strong>: OneDriveで最新ファイルを管理・共有</li>
+            <li><strong>各ユーザー</strong>: ファイルをローカルダウンロードして使用</li>
+            <li><strong>更新時</strong>: 新しいファイルを再ダウンロード</li>
+            <li><strong>データ</strong>: 各ユーザーのローカルブラウザに自動保存</li>
+        </ol>
+    </div>
+
+    <p><a href="index.html">← タスク管理アプリに戻る</a></p>
+</body>
+</html> 

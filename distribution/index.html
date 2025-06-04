@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タスク管理システム</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- カレンダー関連のスクリプト -->
+  <script src="calendar-tooltip.js" defer></script>
+  <!-- メインアプリケーションを読み込み -->
+  <script src="app.js" defer></script>
+  <!-- デバッグ用スクリプト -->
+  <script>
+    // デバッグ用のウィンドウ関数を追加
+    window.debugCalendarApp = function() {
+      console.log('カレンダーデバッグ情報:');
+      
+      // 必要な要素の存在確認
+      const calendarDays = document.getElementById('calendar-days');
+      const calendarContent = document.getElementById('calendar-content');
+      const calendarEvents = document.querySelectorAll('.calendar-event');
+      
+      console.log('- カレンダー日付要素:', calendarDays ? '存在' : '存在しない');
+      console.log('- カレンダーコンテント:', calendarContent ? '存在' : '存在しない');
+      console.log('- カレンダーイベント数:', calendarEvents.length);
+      
+      // グローバル関数の存在確認
+      console.log('- updateCalendar関数:', typeof window.updateCalendar === 'function' ? '存在' : '存在しない');
+      console.log('- initializeCalendarTooltips関数:', typeof window.initializeCalendarTooltips === 'function' ? '存在' : '存在しない');
+      
+      // カレンダータブの状態確認
+      if (calendarContent) {
+        console.log('- カレンダータブアクティブ状態:', calendarContent.classList.contains('active') ? 'アクティブ' : '非アクティブ');
+      }
+      
+      // 手動でカレンダーを更新してみる
+      if (typeof window.updateCalendar === 'function') {
+        console.log('カレンダーを手動で更新します...');
+        window.updateCalendar();
+      }
+    };
+
+    // タブ切り替えのためのヘルパー関数
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('タブ切り替え補助スクリプトが読み込まれました');
+      
+      // タブの切り替え関数
+      function switchToTab(tabId) {
+        console.log(`タブ切り替え: ${tabId}`);
+        
+        // すべてのタブからアクティブクラスを削除
+        document.querySelectorAll('.tab').forEach(tab => {
+          tab.classList.remove('active');
+        });
+        
+        // 選択したタブにアクティブクラスを追加
+        const selectedTab = document.querySelector(`[data-tab="${tabId}"]`);
+        if (selectedTab) {
+          selectedTab.classList.add('active');
+        }
+        
+        // すべてのタブコンテンツからアクティブクラスを削除
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.remove('active');
+        });
+        
+        // 選択したコンテンツにアクティブクラスを追加
+        const selectedContent = document.getElementById(`${tabId}-content`);
+        if (selectedContent) {
+          selectedContent.classList.add('active');
+          
+          // カレンダータブの場合、カレンダーを更新
+          if (tabId === 'calendar' && typeof window.updateCalendar === 'function') {
+            setTimeout(window.updateCalendar, 100);
+          }
+        }
+      }
+      
+      // タブ切り替えイベントリスナーを設定
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+          const tabId = this.getAttribute('data-tab');
+          switchToTab(tabId);
+        });
+      });
+    });
+
+    // グローバルデバッグ関数
+    window.forceUpdateCalendar = function() {
+      console.log('カレンダーを強制更新します');
+      if (typeof window.updateCalendar === 'function') {
+        window.updateCalendar();
+      } else {
+        console.error('updateCalendar関数が見つかりません');
+      }
+    };
+  </script>
+  
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-light: #a5b4fc;
+      --primary-dark: #4f46e5;
+      --primary-lightest: #eef2ff;
+      --primary-gradient-start: #4f46e5;
+      --primary-gradient-end: #7c3aed;
+      --secondary-gradient-start: #6366f1;
+      --secondary-gradient-end: #ec4899;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+    }
+
+    body {
+      font-family: "メイリオ", Meiryo, "Noto Sans JP", sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+      padding: 0.875rem;
+      color: white;
+      box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.3);
+    }
+
+    .card {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      transition: all 0.3s ease;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+      color: white;
+      padding: 0.875rem 1rem;
+      border-top-left-radius: 0.75rem;
+      border-top-right-radius: 0.75rem;
+    }
+
+    .card-body {
+      padding: 1rem;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.5rem 0.875rem;
+      border: 1px solid var(--gray-200);
+      border-radius: 0.375rem;
+      background: white;
+      color: var(--gray-800);
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-light);
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+    }
+
+    .form-input::placeholder {
+      color: var(--gray-300);
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      padding: 0.5rem 0.875rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+    }
+
+    .badge {
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .badge-primary {
+      background: var(--primary-lightest);
+      color: var(--primary);
+    }
+
+    .badge-success {
+      background: #ecfdf5;
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: #fffbeb;
+      color: var(--warning);
+    }
+
+    .badge-danger {
+      background: #fef2f2;
+      color: var(--danger);
+    }
+
+    .task-list-container {
+      height: calc(100vh - 400px);
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .task-list-container::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .task-list-container::-webkit-scrollbar-track {
+      background: var(--gray-100);
+      border-radius: 2px;
+    }
+
+    .task-list-container::-webkit-scrollbar-thumb {
+      background: var(--gray-300);
+      border-radius: 2px;
+    }
+
+    .task-list-container::-webkit-scrollbar-thumb:hover {
+      background: var(--gray-400);
+    }
+
+    .task-form-container {
+      position: relative;
+    }
+
+    .task-form-toggle {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      padding: 0.375rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: white;
+      opacity: 0.8;
+      transition: all 0.2s;
+    }
+
+    .task-form-toggle:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+
+    .task-form-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .task-form-content.collapsed {
+      max-height: 0;
+    }
+
+    .task-form-content.expanded {
+      max-height: 1000px;
+    }
+
+    .task-item {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border-left: 3px solid var(--primary);
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+      font-size: 0.875rem;
+    }
+
+    .task-item:hover {
+      transform: translateX(2px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .task-item.priority-high {
+      border-left-color: var(--danger);
+    }
+
+    .task-item.priority-medium {
+      border-left-color: var(--warning);
+    }
+
+    .task-item.priority-low {
+      border-left-color: var(--success);
+    }
+
+    .search-input {
+      padding-left: 2.25rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 0.625rem center;
+      background-size: 1rem;
+    }
+
+    .filter-btn {
+      transition: all 0.3s ease;
+      opacity: 0.75;
+    }
+    
+    .filter-btn:hover {
+      transform: translateY(-1px);
+      opacity: 1;
+    }
+    
+    .filter-btn.active {
+      opacity: 1;
+      box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+    }
+
+    .text-2xs {
+      font-size: 0.65rem;
+    }
+
+    .progress-bar {
+      height: 0.375rem;
+      border-radius: 9999px;
+      overflow: hidden;
+      background: var(--gray-100);
+    }
+
+    .progress-bar-inner {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.5s ease;
+    }
+
+    .stats-card {
+      position: relative;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.1);
+      transition: all 0.3s ease;
+      background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+      border: 1px solid rgba(99, 102, 241, 0.1);
+    }
+
+    .stats-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px -2px rgba(99, 102, 241, 0.15);
+    }
+    
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 160px;
+      margin: 0 auto;
+    }
+    
+    .chart-container .chart-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    
+    .chart-center .percentage {
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: var(--primary);
+    }
+    
+    .chart-center .label {
+      font-size: 0.7rem;
+      color: var(--gray-600);
+    }
+    
+    .gradient-card {
+      background: linear-gradient(135deg, var(--secondary-gradient-start) 0%, var(--secondary-gradient-end) 100%);
+      color: white;
+    }
+
+    /* Tippy.js テーマのカスタマイズ */
+    .tippy-box[data-theme~='light-border'] {
+      background-color: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      color: #1f2937;
+    }
+    
+    .tippy-box[data-theme~='light-border'] .tippy-content {
+      padding: 0;
+    }
+
+    /* FullCalendarカスタマイズ削除 */
+
+    /* タブ関連のスタイル修正 */
+    .tab-container {
+      display: flex;
+      border-bottom: 1px solid var(--gray-200);
+      margin-bottom: 1rem;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .tab {
+      padding: 0.5rem 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    
+    .tab:hover {
+      color: var(--primary);
+    }
+    
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* デバッグ用 */
+    .debug-border {
+      border: 1px solid red;
+    }
+    
+    /* カレンダー関連のスタイル - Googleカレンダー風 */
+    .calendar-container {
+      background-color: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      padding: 0.5rem;
+      max-width: 100%;
+    }
+    
+    .calendar-grid-container {
+      overflow-y: auto; /* 垂直スクロールのみ有効 */
+      max-height: 70vh; /* 高さを画面の70%に設定 */
+    }
+    
+    .calendar-grid {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    
+    .calendar-grid td {
+      width: calc(100% / 7);
+      box-sizing: border-box;
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.5rem;
+      position: sticky; /* ヘッダーを固定 */
+      top: 0;
+      background: white;
+      z-index: 10;
+    }
+    
+    .calendar-title {
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+    
+    .calendar-nav {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    
+    .calendar-nav button {
+      background-color: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+      color: var(--gray-700);
+    }
+    
+    .calendar-nav button:hover {
+      background-color: var(--gray-100);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    #prev-month, #next-month {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    
+    #today {
+      background-color: var(--primary-lightest);
+      color: var(--primary);
+      font-weight: 500;
+    }
+    
+    #today:hover {
+      background-color: var(--primary-light);
+      color: white;
+    }
+    
+    /* カレンダーグリッド */
+    #calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--gray-200);
+      border-left: 1px solid var(--gray-200);
+    }
+    
+    .calendar-weekday {
+      text-align: center;
+      font-weight: 500;
+      color: var(--gray-700);
+      padding: 0.5rem 0;
+      font-size: 0.75rem;
+      background-color: var(--gray-50);
+      border-right: 1px solid var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .calendar-day {
+      aspect-ratio: auto;
+      min-height: 120px; /* 最低高さを120pxに設定 */
+      height: 120px;
+      border-right: 1px solid var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+      border-radius: 0;
+      padding: 0.25rem;
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+    }
+    
+    .calendar-day:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+      border-color: #3b82f6;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      transition: all 0.2s ease;
+      z-index: 5;
+    }
+    
+    .add-task-btn {
+      transition: all 0.2s ease;
+    }
+    
+    .add-task-btn:hover {
+      transform: scale(1.15) translateY(-1px);
+      background-color: #3b82f6;
+      color: white;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    
+    .calendar-day.today {
+      background-color: var(--primary-lightest);
+    }
+    
+    .calendar-day.outside-month {
+      background-color: var(--gray-50);
+      color: var(--gray-400);
+    }
+    
+    /* 日付表示 */
+    .calendar-day > div:first-child {
+      font-size: 0.85rem;
+      padding: 0.25rem;
+      text-align: right;
+      color: var(--gray-700);
+      height: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .calendar-day.today > div:first-child {
+      color: var(--primary);
+      font-weight: bold;
+    }
+    
+    /* イベント表示エリア */
+    .calendar-events {
+      padding-top: 0;
+      padding-bottom: 2px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      max-height: calc(100% - 2rem);
+      background-color: transparent;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+      margin-top: 0;
+      padding-top: 4px;
+      border-top: 1px dashed var(--gray-200);
+      flex-grow: 1; /* 利用可能なスペースを埋めるように拡張 */
+    }
+    
+    /* カレンダータスク上でのホバー効果を強化 */
+    .calendar-event {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.25rem;
+      border-radius: 0.125rem;
+      margin-bottom: 0.15rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      line-height: 1.2;
+      display: block;
+      transition: all 0.2s ease;
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* ホバー時のスタイルを強化 */
+    .calendar-event:hover {
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15);
+      z-index: 5;
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.25) 100%);
+      border-radius: 0.25rem;
+      transition: all 0.2s ease;
+    }
+    
+    /* タスクホバー時のツールチップ */
+    .calendar-event::after {
+      content: attr(data-title);
+      position: absolute;
+      display: none;
+      background: white;
+      border-radius: 0.375rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      padding: 0.5rem;
+      width: 250px;
+      z-index: 10;
+      top: calc(100% + 8px);
+      left: 0;
+      font-size: 0.75rem;
+      border-top: 2px solid var(--primary);
+      pointer-events: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      transform: translateY(5px);
+      text-align: left;
+    }
+    
+    .calendar-event.priority-high::after {
+      border-top-color: var(--danger);
+    }
+    
+    .calendar-event.priority-medium::after {
+      border-top-color: var(--warning);
+    }
+    
+    /* ホバー時にツールチップを表示 */
+    .calendar-event:hover::after {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    /* 右端のタスクは左側にツールチップを表示 */
+    .calendar-event.position-right::after {
+      left: auto;
+      right: 0;
+    }
+    
+    /* カスタムツールチップ */
+    .calendar-event[data-title]::after {
+      /* 削除: content: attr(data-title); */
+      /* すでに上記のスタイルで設定済み */
+    }
+    
+    /* 期間タスク用スタイル */
+    .period-task {
+      position: absolute;
+      font-size: 0.7rem;
+      padding: 1px 4px;
+      border-radius: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      height: 18px;
+      line-height: 1.2;
+      z-index: 5;
+      box-sizing: border-box;
+      left: 0;
+      max-width: 100%;
+      display: block;
+      transition: all 0.2s ease;
+    }
+    
+    .period-task:hover {
+      z-index: 10;
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2), 0 2px 6px rgba(0, 0, 0, 0.1);
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.12) 0%, rgba(99, 102, 241, 0.2) 100%);
+      border-radius: 0.25rem;
+      transition: all 0.2s ease;
+    }
+
+    /* タスクの優先度と状態に関するスタイル */
+    .calendar-event.priority-high {
+      background-color: rgba(239, 68, 68, 0.2);
+      border-left: 3px solid var(--danger);
+    }
+    
+    .calendar-event.priority-medium {
+      background-color: rgba(245, 158, 11, 0.2);
+      border-left: 3px solid var(--warning);
+    }
+    
+    .calendar-event.priority-low {
+      background-color: rgba(16, 185, 129, 0.2);
+      border-left: 3px solid var(--success);
+    }
+    
+    .calendar-event.completed {
+      text-decoration: line-through;
+      opacity: 0.6;
+      background-color: rgba(156, 163, 175, 0.1);
+    }
+    
+    .period-task.priority-high {
+      background-color: rgba(239, 68, 68, 0.15);
+      border-left: 3px solid var(--danger);
+      border-right: 1px solid var(--danger);
+    }
+    
+    .period-task.priority-medium {
+      background-color: rgba(245, 158, 11, 0.15);
+      border-left: 3px solid var(--warning);
+      border-right: 1px solid var(--warning);
+    }
+    
+    .period-task.priority-low {
+      background-color: rgba(16, 185, 129, 0.15);
+      border-left: 3px solid var(--success);
+      border-right: 1px solid var(--success);
+    }
+    
+    .period-task.completed {
+      text-decoration: line-through;
+      opacity: 0.5;
+      background-color: rgba(156, 163, 175, 0.1);
+    }
+    
+    /* 期間タスク用のコンテナは不要になるため非表示 */
+    #calendar-period-tasks {
+      display: none;
+    }
+
+    /* カスタムスクロールバースタイル */
+    .calendar-events {
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e0 #f8fafc;
+    }
+    
+    /* WebKitブラウザ用のスクロールバースタイル */
+    .calendar-events::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    
+    .calendar-events::-webkit-scrollbar-track {
+      background: #f8fafc;
+    }
+    
+    .calendar-events::-webkit-scrollbar-thumb {
+      background-color: #cbd5e0;
+      border-radius: 4px;
+    }
+    
+    /* 担当者リスト用のスクロールバースタイル */
+    #office-assignee-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    #office-assignee-list::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+    
+    #office-assignee-list::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #94a3b8, #64748b);
+      border-radius: 3px;
+    }
+    
+    #office-assignee-list::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #64748b, #475569);
+    }
+    
+    /* 担当者名の表示最適化 */
+    .assignee-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 95px;
+    }
+    
+    /* 担当者バッジのホバー効果 */
+    .assignee-badge {
+      transition: all 0.2s ease;
+      min-width: 0;
+      flex-shrink: 0;
+    }
+    
+    .assignee-badge:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+      position: relative;
+    }
+    
+    /* 15名表示のための最適化 */
+    .assignee-scroll-area {
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e0 #f8fafc;
+      line-height: 1.3;
+    }
+    
+    .assignee-scroll-area .flex {
+      gap: 0.25rem;
+    }
+    
+    /* レスポンシブ対応 - 小画面では担当者バッジをより小さく */
+    @media (max-width: 1024px) {
+      .assignee-badge {
+        max-width: 120px;
+        font-size: 0.6rem;
+        padding: 0.125rem 0.375rem;
+      }
+      
+      .assignee-name {
+        max-width: 80px;
+      }
+    }
+    
+    @media (min-width: 1025px) {
+      .assignee-badge {
+        max-width: 140px;
+      }
+      
+      .assignee-name {
+        max-width: 95px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="min-h-screen flex flex-col">
+    <header class="app-header">
+      <div class="container mx-auto flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+          <div class="bg-white bg-opacity-20 p-1.5 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+              <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <h1 class="text-xl font-bold">タスク管理システム</h1>
+        </div>
+        <div class="text-xs font-medium bg-white bg-opacity-20 rounded-full px-3 py-1 shadow-inner" id="current-date"></div>
+      </div>
+    </header>
+
+    <main class="container mx-auto p-4 flex-grow">
+      <div class="tab-container mb-4">
+        <div class="tab active" data-tab="dashboard">ダッシュボード</div>
+        <div class="tab" data-tab="calendar">カレンダー</div>
+        <div class="tab" data-tab="master">マスタ</div>
+      </div>
+      
+      <div class="tab-content active" id="dashboard-content">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <!-- 左カラム: タスク一覧とフォーム -->
+          <div class="lg:col-span-5 space-y-4">
+            <!-- タスク追加フォーム -->
+            <div class="card task-form-container overflow-hidden">
+              <div class="card-header flex justify-between items-center">
+                <h2 class="text-sm font-bold flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  新しいタスクを追加
+                </h2>
+                <button class="task-form-toggle">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div class="task-form-content expanded">
+                <div class="card-body p-3">
+                  <form class="space-y-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label for="title" class="form-label">
+                          タイトル <span class="text-danger">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="title"
+                          name="title"
+                          class="form-input py-1"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label for="category" class="form-label">
+                          業務カテゴリー
+                        </label>
+                        <select
+                          id="category"
+                          name="category"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="">カテゴリーを選択</option>
+                          <!-- カテゴリーはJavaScriptで動的に追加 -->
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label for="description" class="form-label">
+                        説明
+                      </label>
+                      <input
+                        type="text"
+                        id="description"
+                        name="description"
+                        class="form-input py-1"
+                        placeholder="タスクの詳細を入力"
+                      />
+                    </div>
+                    
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                      <div>
+                        <label for="status" class="form-label">
+                          ステータス
+                        </label>
+                        <select
+                          id="status"
+                          name="status"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="todo">未着手</option>
+                          <option value="in-progress">進行中</option>
+                          <option value="completed">完了</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label for="priority" class="form-label">
+                          優先度
+                        </label>
+                        <select
+                          id="priority"
+                          name="priority"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="low">低</option>
+                          <option value="medium">中</option>
+                          <option value="high">高</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label for="startDate" class="form-label">
+                          開始日
+                        </label>
+                        <input
+                          type="date"
+                          id="startDate"
+                          name="startDate"
+                          class="form-input text-sm py-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label for="dueDate" class="form-label">
+                          終了日
+                        </label>
+                        <input
+                          type="date"
+                          id="dueDate"
+                          name="dueDate"
+                          class="form-input text-sm py-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    <!-- 拠点選択 -->
+                    <div class="grid grid-cols-1 gap-2 mt-2">
+                      <div>
+                        <label for="office" class="form-label">
+                          拠点
+                        </label>
+                        <select
+                          id="office"
+                          name="office"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="">拠点を選択</option>
+                          <!-- 拠点はJavaScriptで動的に追加 -->
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <!-- 担当者選択 -->
+                    <div class="grid grid-cols-3 gap-2 mt-2">
+                      <div>
+                        <label for="assignee1" class="form-label">
+                          主担当者 <small class="text-gray-500">(選択拠点)</small>
+                        </label>
+                        <select
+                          id="assignee1"
+                          name="assignee1"
+                          class="form-input text-sm py-1"
+                          disabled
+                        >
+                          <option value="">拠点を先に選択</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="assignee2" class="form-label">
+                          副担当者1 <small class="text-gray-500">(全拠点)</small>
+                        </label>
+                        <select
+                          id="assignee2"
+                          name="assignee2"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="">担当者を選択</option>
+                          <!-- 全拠点の担当者をJavaScriptで追加 -->
+                        </select>
+                      </div>
+                      <div>
+                        <label for="assignee3" class="form-label">
+                          副担当者2 <small class="text-gray-500">(全拠点)</small>
+                        </label>
+                        <select
+                          id="assignee3"
+                          name="assignee3"
+                          class="form-input text-sm py-1"
+                        >
+                          <option value="">担当者を選択</option>
+                          <!-- 全拠点の担当者をJavaScriptで追加 -->
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="flex justify-end mt-2">
+                      <button type="submit" class="btn-primary py-1">
+                        <span class="flex items-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                          </svg>
+                          追加
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <!-- タスク一覧 -->
+            <div class="card overflow-hidden">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <h2 class="text-sm font-bold flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    タスク一覧
+                  </h2>
+                  <div class="flex gap-1.5">
+                    <button class="filter-btn badge badge-primary active text-xs">
+                      全て <span class="ml-1 bg-white bg-opacity-20 px-1 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button class="filter-btn badge badge-warning text-xs">
+                      未着手 <span class="ml-1 bg-white bg-opacity-20 px-1 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button class="filter-btn badge badge-primary text-xs">
+                      進行中 <span class="ml-1 bg-white bg-opacity-20 px-1 py-0.5 rounded-full">0</span>
+                    </button>
+                    <button class="filter-btn badge badge-success text-xs">
+                      完了 <span class="ml-1 bg-white bg-opacity-20 px-1 py-0.5 rounded-full">0</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="mt-2">
+                  <input 
+                    type="text" 
+                    id="search-tasks" 
+                    placeholder="タスクを検索..." 
+                    class="form-input search-input text-sm"
+                  >
+                </div>
+              </div>
+
+              <div class="card-body p-2">
+                <div class="task-list-container" style="height: calc(100vh - 250px);">
+                  <div class="empty-task-message text-center py-6 text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p class="text-sm">表示するタスクがありません</p>
+                    <p class="text-xs mt-1">新しいタスクを追加してみましょう</p>
+                  </div>
+                  <div class="task-list-items space-y-2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 中央カラム: 統計とチャート -->
+          <div class="lg:col-span-4 space-y-4">
+            <!-- 進捗状況チャート -->
+            <div class="card overflow-hidden">
+              <div class="card-header flex items-center bg-gradient-to-r from-indigo-600 to-purple-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                </svg>
+                <h3 class="text-sm font-bold">タスク進捗状況</h3>
+              </div>
+              <div class="card-body py-4">
+                <div class="chart-container">
+                  <canvas id="progressChart"></canvas>
+                  <div class="chart-center">
+                    <div class="percentage" id="progress-percentage">0%</div>
+                    <div class="label">完了率</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 統計カード -->
+            <div class="grid grid-cols-3 gap-2">
+              <div class="stats-card">
+                <div class="px-3 py-3">
+                  <div class="flex items-center mb-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="text-xs font-semibold text-gray-700">タスク完了率</h3>
+                  </div>
+                  <div class="text-2xl font-bold text-primary" id="completion-rate">0%</div>
+                  <div class="text-xs text-gray-500 mt-1">タスクの達成状況</div>
+                  <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500" style="width: var(--completion-rate, 0%)"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="stats-card">
+                <div class="px-3 py-3">
+                  <div class="flex items-center mb-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="text-xs font-semibold text-gray-700">未完了タスク</h3>
+                  </div>
+                  <div class="text-2xl font-bold text-primary" id="pending-tasks">0</div>
+                  <div class="text-xs text-gray-500 mt-1">要対応タスク数</div>
+                  <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500" style="width: var(--pending-rate, 0%)"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="stats-card">
+                <div class="px-3 py-3">
+                  <div class="flex items-center mb-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="text-xs font-semibold text-gray-700">期限切れタスク</h3>
+                  </div>
+                  <div class="text-2xl font-bold text-red-500" id="overdue-tasks-count">0</div>
+                  <div class="text-xs text-gray-500 mt-1">遅延タスク数</div>
+                  <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-1.5 bg-gradient-to-r from-red-400 to-pink-600 rounded-full transition-all duration-500" style="width: var(--overdue-rate, 0%)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ステータス概要 -->
+            <div class="flex justify-between items-center mt-2 py-2 px-3 bg-white rounded-lg shadow-sm">
+              <div class="flex space-x-1 text-xs">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
+                  <span id="todo-count" class="font-semibold mr-1">0</span>未着手
+                </span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-700">
+                  <span id="in-progress-count" class="font-semibold mr-1">0</span>進行中
+                </span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-green-50 text-green-700">
+                  <span id="completed-count" class="font-semibold mr-1">0</span>完了
+                </span>
+              </div>
+              <span class="text-xs text-gray-500">ステータス別</span>
+            </div>
+
+            <!-- 期日タイムライン -->
+            <div class="bg-white rounded-lg shadow-sm p-3 mt-2">
+              <div class="flex justify-between items-center mb-1">
+                <h3 class="text-xs font-semibold text-gray-700">今後の期限</h3>
+                <span class="text-xs text-gray-500" id="timeline-range">今週の期限</span>
+              </div>
+              <div class="flex items-end h-20 space-x-1 mt-1" id="due-date-timeline">
+                <!-- タイムラインはJavaScriptで動的に生成 -->
+              </div>
+              <div class="flex justify-between text-2xs text-gray-500 mt-1" id="timeline-labels">
+                <!-- ラベルはJavaScriptで動的に生成 -->
+              </div>
+            </div>
+
+            <!-- 予定タスク -->
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <!-- 本日の予定タスク -->
+              <div class="card overflow-hidden">
+                <div class="card-header flex items-center bg-gradient-to-r from-green-500 to-teal-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <h3 class="text-sm font-bold">本日の予定タスク</h3>
+                </div>
+                <div class="card-body p-2 max-h-[180px] overflow-y-auto" id="today-tasks">
+                  <!-- 本日の予定タスクがここに表示されます -->
+                </div>
+              </div>
+
+              <!-- 今週の予定タスク -->
+              <div class="card overflow-hidden">
+                <div class="card-header flex items-center bg-gradient-to-r from-blue-500 to-indigo-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <h3 class="text-sm font-bold">今週の予定タスク</h3>
+                </div>
+                <div class="card-body p-2 max-h-[180px] overflow-y-auto" id="weekly-tasks">
+                  <!-- 今週の予定タスクがここに表示されます -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 期限切れタスク詳細 -->
+            <div class="card overflow-hidden">
+              <div class="card-header flex items-center bg-gradient-to-r from-red-500 to-pink-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 class="text-sm font-bold">期限切れタスク詳細</h3>
+              </div>
+              <div class="card-body p-2 max-h-[180px] overflow-y-auto" id="overdue-tasks">
+                <!-- 期限切れタスクがここに表示されます -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 右カラム: 担当者別タスク -->
+          <div class="lg:col-span-3 space-y-4">
+            <!-- 担当者別タスク分布 -->
+            <div class="card overflow-hidden">
+              <div class="card-header flex items-center bg-gradient-to-r from-violet-500 to-indigo-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <h3 class="text-sm font-bold">担当者別タスク</h3>
+              </div>
+              <div class="card-body p-3 max-h-[500px] overflow-y-auto">
+                <div class="grid grid-cols-2 gap-2" id="assignee-tasks">
+                  <!-- 担当者別タスクがここに表示されます -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="calendar-content">
+        <div class="calendar-container" style="overflow-x: auto; min-width: 800px;">
+          <div class="calendar-header">
+            <div class="calendar-title">2025年6月</div>
+            <div class="calendar-nav">
+              <button id="prev-month">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                </svg>
+                <span>前月</span>
+              </button>
+              <button id="today">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857V3.857z"/>
+                  <path d="M6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+                </svg>
+                <span>今日</span>
+              </button>
+              <button id="next-month">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+                </svg>
+                <span>翌月</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="calendar-grid-container" style="overflow-x: auto; max-height: 70vh;">
+            <div class="calendar-grid" style="min-width: 800px;">
+              <div class="grid grid-cols-7 text-center border-t border-l border-gray-200" style="grid-template-columns: repeat(7, 1fr);">
+                <div class="calendar-weekday text-red-500">日</div>
+                <div class="calendar-weekday">月</div>
+                <div class="calendar-weekday">火</div>
+                <div class="calendar-weekday">水</div>
+                <div class="calendar-weekday">木</div>
+                <div class="calendar-weekday">金</div>
+                <div class="calendar-weekday text-blue-500">土</div>
+              </div>
+              <div id="calendar-days" class="grid grid-cols-7" style="grid-template-columns: repeat(7, 1fr);">
+                <!-- カレンダー日付はJSで動的に生成 -->
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4" id="calendar-period-tasks" style="display: none;">
+            <!-- 期間タスクはJSで動的に生成 -->
+          </div>
+        </div>
+        
+        <div class="mt-4 text-sm text-gray-500">
+          <div class="flex items-center mb-1">
+            <div class="w-3 h-3 bg-red-100 border-l-2 border-red-500 mr-2"></div>
+            <span>高優先度タスク</span>
+          </div>
+          <div class="flex items-center mb-1">
+            <div class="w-3 h-3 bg-yellow-100 border-l-2 border-yellow-500 mr-2"></div>
+            <span>中優先度タスク</span>
+          </div>
+          <div class="flex items-center mb-1">
+            <div class="w-3 h-3 bg-green-100 border-l-2 border-green-500 mr-2"></div>
+            <span>低優先度タスク</span>
+          </div>
+          <div class="flex items-center mb-1">
+            <div class="w-3 h-3 bg-gray-100 border-l-2 border-gray-400 mr-2 line-through"></div>
+            <span>完了タスク</span>
+          </div>
+          <div class="flex items-center">
+            <div class="w-3 h-3 bg-indigo-50 mr-2" style="background-image: repeating-linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.1) 5px, transparent 5px, transparent 10px);"></div>
+            <span>期間タスク（日付〜終了日）</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- マスタ管理タブ -->
+      <div class="tab-content" id="master-content">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <!-- 業務カテゴリーマスタ -->
+          <div class="card overflow-hidden shadow-lg">
+            <div class="card-header bg-gradient-to-r from-indigo-600 to-purple-600">
+              <h2 class="text-lg font-bold flex items-center text-white">
+                <div class="bg-white bg-opacity-20 p-2 rounded-lg mr-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </div>
+                業務カテゴリーマスタ
+              </h2>
+            </div>
+            <div class="card-body p-6">
+              <!-- カテゴリー追加フォーム -->
+              <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-3">新しいカテゴリーを追加</label>
+                <div class="space-y-3">
+                  <input 
+                    type="text" 
+                    id="new-category" 
+                    placeholder="例：プロジェクト管理、顧客対応" 
+                    class="form-input w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 px-4 py-3"
+                  >
+                  <button 
+                    id="add-category-btn" 
+                    class="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    追加
+                  </button>
+                </div>
+              </div>
+              
+              <!-- カテゴリー一覧 -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-sm font-semibold text-gray-700">登録済みカテゴリー</h3>
+                  <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-medium" id="category-count">0件</span>
+                </div>
+                <div id="category-list" class="space-y-2 max-h-80 overflow-y-auto">
+                  <!-- カテゴリーリストはJSで生成 -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 担当者マスタ（拡張版） -->
+          <div class="xl:col-span-2 card overflow-hidden shadow-lg">
+            <div class="card-header bg-gradient-to-r from-cyan-600 to-blue-600">
+              <h2 class="text-lg font-bold flex items-center text-white">
+                <div class="bg-white bg-opacity-20 p-2 rounded-lg mr-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                担当者マスタ
+              </h2>
+            </div>
+            <div class="card-body p-6">
+              <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <!-- 左列：拠点・担当者追加フォーム（2/5の幅） -->
+                <div class="lg:col-span-2">
+                  <!-- 拠点追加フォーム -->
+                  <div class="mb-8">
+                    <label class="block text-sm font-semibold text-gray-700 mb-4">拠点管理</label>
+                    <div class="space-y-3">
+                      <input 
+                        type="text" 
+                        id="new-office" 
+                        placeholder="例：東京本社、大阪支社、札幌CO" 
+                        class="form-input w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-200 px-4 py-3"
+                      >
+                      <button 
+                        id="add-office-btn" 
+                        class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        拠点を追加
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- 担当者追加フォーム -->
+                  <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-4">担当者管理</label>
+                    <div class="space-y-3">
+                      <select 
+                        id="office-select" 
+                        class="form-input w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-200 px-4 py-3"
+                      >
+                        <option value="">所属拠点を選択してください</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        id="new-assignee" 
+                        placeholder="例：山田太郎、佐藤花子" 
+                        class="form-input w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-200 px-4 py-3"
+                      >
+                      <button 
+                        id="add-assignee-btn" 
+                        class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        担当者を追加
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 右列：拠点・担当者一覧（3/5の幅） -->
+                <div class="lg:col-span-3">
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">拠点・担当者一覧</h3>
+                    <span class="bg-cyan-100 text-cyan-800 px-3 py-1 rounded-full text-xs font-medium" id="office-count">0件</span>
+                  </div>
+                  <div id="office-assignee-list" class="space-y-4 max-h-[700px] overflow-y-auto pr-2" style="scrollbar-width: thin; scrollbar-color: #cbd5e0 #f8fafc;">
+                    <!-- 拠点・担当者リストはJSで生成 -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- マスタデータ統計サマリー -->
+        <div class="mt-8">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100">
+              <div class="flex items-center">
+                <div class="bg-gradient-to-r from-indigo-500 to-purple-500 p-3 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </div>
+                <div class="ml-4">
+                  <h3 class="text-lg font-semibold text-gray-900">業務カテゴリー</h3>
+                  <p class="text-3xl font-bold text-indigo-600" id="total-categories">0</p>
+                  <p class="text-sm text-gray-600">登録済み</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-6 border border-cyan-100">
+              <div class="flex items-center">
+                <div class="bg-gradient-to-r from-cyan-500 to-blue-500 p-3 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div class="ml-4">
+                  <h3 class="text-lg font-semibold text-gray-900">拠点数</h3>
+                  <p class="text-3xl font-bold text-cyan-600" id="total-offices">0</p>
+                  <p class="text-sm text-gray-600">運営中</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-100">
+              <div class="flex items-center">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-500 p-3 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div class="ml-4">
+                  <h3 class="text-lg font-semibold text-gray-900">担当者数</h3>
+                  <p class="text-3xl font-bold text-emerald-600" id="total-assignees">0</p>
+                  <p class="text-sm text-gray-600">登録済み</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-2 px-4">
+      <div class="container mx-auto text-center">
+        <p class="text-xs text-gray-400">© 2025 セントラルオフィス課</p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // グローバルデバッグ関数
+    window.forceUpdateCalendar = function() {
+      console.log('カレンダーを強制更新します');
+      if (typeof window.updateCalendar === 'function') {
+        window.updateCalendar();
+      } else {
+        console.error('updateCalendar関数が見つかりません');
+      }
+    };
+  </script>
+</body>
+</html> 
