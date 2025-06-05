@@ -228,6 +228,26 @@
         console.error('updateCalendar関数が見つかりません');
       }
     };
+    
+    // カレンダーツールチップのテスト
+    window.testCalendarTooltips = function() {
+      console.log('カレンダーツールチップをテストします');
+      
+      // 既存のツールチップがあれば削除
+      document.querySelectorAll('.calendar-event-tooltip').forEach(tooltip => {
+        if (tooltip.parentNode) {
+          tooltip.parentNode.removeChild(tooltip);
+        }
+      });
+      
+      // カレンダーツールチップの初期化を再実行
+      if (typeof window.initializeCalendarTooltips === 'function') {
+        window.initializeCalendarTooltips();
+        console.log('カレンダーツールチップの初期化が完了しました');
+      } else {
+        console.error('initializeCalendarTooltips関数が見つかりません');
+      }
+    };
   </script>
   
   <style>
@@ -691,8 +711,8 @@
     
     .calendar-day {
       aspect-ratio: auto;
-      min-height: 120px; /* 最低高さを120pxに設定 */
-      height: 120px;
+      min-height: 280px; /* 最低高さを280pxに設定（より大きく） */
+      height: 280px;
       border-right: 1px solid var(--gray-200);
       border-bottom: 1px solid var(--gray-200);
       border-radius: 0;
@@ -753,9 +773,9 @@
     .calendar-events {
       padding-top: 0;
       padding-bottom: 2px;
-      overflow-y: auto;
+      overflow-y: auto; /* スクロールを再度有効化 */
       overflow-x: hidden;
-      max-height: calc(100% - 2rem);
+      max-height: calc(100% - 1.5rem); /* 利用可能な高さを調整 */
       background-color: transparent;
       box-sizing: border-box;
       position: relative;
@@ -763,20 +783,38 @@
       margin-top: 0;
       padding-top: 4px;
       border-top: 1px dashed var(--gray-200);
-      flex-grow: 1; /* 利用可能なスペースを埋めるように拡張 */
+      flex-grow: 1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(203, 213, 224, 0.5) transparent;
+    }
+    
+    /* WebKitブラウザ用のスクロールバースタイル */
+    .calendar-events::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+      background-color: transparent;
+    }
+    
+    .calendar-events::-webkit-scrollbar-thumb {
+      background-color: rgba(203, 213, 224, 0.5);
+      border-radius: 4px;
+    }
+    
+    .calendar-events::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(160, 174, 192, 0.8);
     }
     
     /* カレンダータスク上でのホバー効果を強化 */
     .calendar-event {
       font-size: 0.7rem;
-      padding: 0.15rem 0.25rem;
+      padding: 0.1rem 0.2rem;
       border-radius: 0.125rem;
-      margin-bottom: 0.15rem;
+      margin-bottom: 0.1rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
-      line-height: 1.2;
+      line-height: 1.1;
       display: block;
       transition: all 0.2s ease;
       position: relative;
@@ -793,8 +831,130 @@
       transition: all 0.2s ease;
     }
     
+    /* カレンダーセルの高さを調整 */
+    .calendar-day {
+      aspect-ratio: auto;
+      min-height: 280px; /* 最低高さを280pxに設定（より大きく） */
+      height: 280px;
+      border-right: 1px solid var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+      border-radius: 0;
+      padding: 0.25rem;
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+    }
+    
+    /* カレンダーイベントの表示を最適化 */
+    .calendar-events {
+      padding-top: 0;
+      padding-bottom: 2px;
+      overflow-y: auto; /* スクロールを再度有効化 */
+      overflow-x: hidden;
+      max-height: calc(100% - 1.5rem); /* 利用可能な高さを調整 */
+      background-color: transparent;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+      margin-top: 0;
+      padding-top: 4px;
+      border-top: 1px dashed var(--gray-200);
+      flex-grow: 1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(203, 213, 224, 0.5) transparent;
+    }
+    
+    /* カテゴリーバッジのスタイル */
+    .category-badge {
+      display: none;
+    }
+    
+    /* タスクタイトルのスタイル */
+    .task-title {
+      display: none;
+    }
+    
+    /* カテゴリー別の色分け - 動的に生成されるクラスのベーススタイル */
+    [class*="category-"] .category-badge {
+      display: none;
+    }
+    
+    /* 一般的なカテゴリー色の例 */
+    .category-project .category-badge { display: none; }
+    .category-meeting .category-badge { display: none; }
+    .category-report .category-badge { display: none; }
+    .category-training .category-badge { display: none; }
+    .category-client .category-badge { display: none; }
+    
+    /* カレンダータスク上でのホバー効果を強化 */
+    .calendar-event {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.2rem;
+      border-radius: 0.125rem;
+      margin-bottom: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      line-height: 1.1;
+      display: block;
+      transition: all 0.2s ease;
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* ホバー時のスタイルを強化 */
+    .calendar-event:hover {
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15);
+      z-index: 5;
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(99, 102, 241, 0.25) 100%);
+      border-radius: 0.25rem;
+      transition: all 0.2s ease;
+    }
+    
+    /* カレンダーセルの高さを調整 */
+    .calendar-day {
+      aspect-ratio: auto;
+      min-height: 280px; /* 最低高さを280pxに設定（より大きく） */
+      height: 280px;
+      border-right: 1px solid var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+      border-radius: 0;
+      padding: 0.25rem;
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+    }
+    
+    /* カレンダーイベントの表示を最適化 */
+    .calendar-events {
+      padding-top: 0;
+      padding-bottom: 2px;
+      overflow-y: auto; /* スクロールを再度有効化 */
+      overflow-x: hidden;
+      max-height: calc(100% - 1.5rem); /* 利用可能な高さを調整 */
+      background-color: transparent;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+      margin-top: 0;
+      padding-top: 4px;
+      border-top: 1px dashed var(--gray-200);
+      flex-grow: 1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(203, 213, 224, 0.5) transparent;
+    }
+    
     /* タスクホバー時のツールチップ */
     .calendar-event::after {
+      /* コメントアウト - JS実装と競合するため
       content: attr(data-title);
       position: absolute;
       display: none;
@@ -816,6 +976,8 @@
       transition: opacity 0.2s ease, transform 0.2s ease;
       transform: translateY(5px);
       text-align: left;
+      */
+      display: none; /* JS実装を優先 */
     }
     
     .calendar-event.priority-high::after {
@@ -828,9 +990,12 @@
     
     /* ホバー時にツールチップを表示 */
     .calendar-event:hover::after {
+      /* コメントアウト - JS実装と競合するため
       display: block;
       opacity: 1;
       transform: translateY(0);
+      */
+      display: none; /* JS実装を優先 */
     }
     
     /* 右端のタスクは左側にツールチップを表示 */
@@ -925,27 +1090,6 @@
       display: none;
     }
 
-    /* カスタムスクロールバースタイル */
-    .calendar-events {
-      scrollbar-width: thin;
-      scrollbar-color: #cbd5e0 #f8fafc;
-    }
-    
-    /* WebKitブラウザ用のスクロールバースタイル */
-    .calendar-events::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
-    }
-    
-    .calendar-events::-webkit-scrollbar-track {
-      background: #f8fafc;
-    }
-    
-    .calendar-events::-webkit-scrollbar-thumb {
-      background-color: #cbd5e0;
-      border-radius: 4px;
-    }
-    
     /* 担当者リスト用のスクロールバースタイル */
     #office-assignee-list::-webkit-scrollbar {
       width: 6px;
@@ -1019,6 +1163,23 @@
       .assignee-name {
         max-width: 95px;
       }
+    }
+
+    /* 期間タスク表示のスタイル */
+    .calendar-event.period-start {
+      border-left-width: 3px;
+    }
+    
+    .calendar-event.period-middle {
+      border-left-style: dashed;
+      background-color: rgba(241, 245, 249, 0.7);
+      font-style: italic;
+    }
+    
+    .calendar-event.period-end {
+      border-right-width: 3px;
+      background-color: rgba(241, 245, 249, 0.7);
+      font-style: italic;
     }
   </style>
 </head>
@@ -1249,12 +1410,6 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                     タスク一覧
-                    <button id="refresh-tasks" class="ml-3 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md transition-all duration-200 flex items-center" title="最新データを取得">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      更新
-                    </button>
                   </h2>
                   <div class="flex gap-1.5">
                     <button class="filter-btn badge badge-primary active text-xs">
@@ -1513,25 +1668,28 @@
         </div>
         
         <div class="mt-4 text-sm text-gray-500">
-          <div class="flex items-center mb-1">
-            <div class="w-3 h-3 bg-red-100 border-l-2 border-red-500 mr-2"></div>
-            <span>高優先度タスク</span>
-          </div>
-          <div class="flex items-center mb-1">
-            <div class="w-3 h-3 bg-yellow-100 border-l-2 border-yellow-500 mr-2"></div>
-            <span>中優先度タスク</span>
-          </div>
-          <div class="flex items-center mb-1">
-            <div class="w-3 h-3 bg-green-100 border-l-2 border-green-500 mr-2"></div>
-            <span>低優先度タスク</span>
-          </div>
-          <div class="flex items-center mb-1">
-            <div class="w-3 h-3 bg-gray-100 border-l-2 border-gray-400 mr-2 line-through"></div>
-            <span>完了タスク</span>
-          </div>
-          <div class="flex items-center">
-            <div class="w-3 h-3 bg-indigo-50 mr-2" style="background-image: repeating-linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.1) 5px, transparent 5px, transparent 10px);"></div>
-            <span>期間タスク（日付〜終了日）</span>
+          <h4 class="font-medium mb-2">タスク表示の見方</h4>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div class="flex items-center mb-1">
+              <div class="w-3 h-3 bg-red-100 border-l-2 border-red-500 mr-2"></div>
+              <span>高優先度タスク</span>
+            </div>
+            <div class="flex items-center mb-1">
+              <div class="w-3 h-3 bg-yellow-100 border-l-2 border-yellow-500 mr-2"></div>
+              <span>中優先度タスク</span>
+            </div>
+            <div class="flex items-center mb-1">
+              <div class="w-3 h-3 bg-green-100 border-l-2 border-green-500 mr-2"></div>
+              <span>低優先度タスク</span>
+            </div>
+            <div class="flex items-center mb-1">
+              <div class="w-3 h-3 bg-gray-100 border-l-2 border-gray-400 mr-2 line-through"></div>
+              <span>完了タスク</span>
+            </div>
+            <div class="flex items-center mb-1">
+              <div class="w-3 h-3 bg-indigo-50 mr-2" style="background-image: repeating-linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.1) 5px, transparent 5px, transparent 10px);"></div>
+              <span>期間タスク（日付〜終了日）</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1579,7 +1737,7 @@
                   <h3 class="text-sm font-semibold text-gray-700">登録済みカテゴリー</h3>
                   <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-medium" id="category-count">0件</span>
                 </div>
-                <div id="category-list" class="space-y-2 max-h-80 overflow-y-auto">
+                <div id="category-list" class="space-y-1 max-h-40 overflow-y-auto">
                   <!-- カテゴリーリストはJSで生成 -->
                 </div>
               </div>
@@ -1725,6 +1883,8 @@
     </footer>
   </div>
 
+  <script src="app.js"></script>
+  <script src="calendar-tooltip.js"></script>
   <script>
     // グローバルデバッグ関数
     window.forceUpdateCalendar = function() {
@@ -1733,6 +1893,26 @@
         window.updateCalendar();
       } else {
         console.error('updateCalendar関数が見つかりません');
+      }
+    };
+    
+    // カレンダーツールチップのテスト
+    window.testCalendarTooltips = function() {
+      console.log('カレンダーツールチップをテストします');
+      
+      // 既存のツールチップがあれば削除
+      document.querySelectorAll('.calendar-event-tooltip').forEach(tooltip => {
+        if (tooltip.parentNode) {
+          tooltip.parentNode.removeChild(tooltip);
+        }
+      });
+      
+      // カレンダーツールチップの初期化を再実行
+      if (typeof window.initializeCalendarTooltips === 'function') {
+        window.initializeCalendarTooltips();
+        console.log('カレンダーツールチップの初期化が完了しました');
+      } else {
+        console.error('initializeCalendarTooltips関数が見つかりません');
       }
     };
   </script>
