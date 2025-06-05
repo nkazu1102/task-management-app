@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneDriveでタスク管理アプリを共有する方法</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .method { background: #f0f8ff; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #0078d4; }
+        .step { background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 6px; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 15px 0; }
+        .success { background: #d1e7dd; padding: 15px; border-radius: 6px; border-left: 4px solid #198754; margin: 15px 0; }
+        code { background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; }
+        .highlight { background: #0078d4; color: white; padding: 3px 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>📁 OneDriveでタスク管理アプリを共有</h1>
+
+    <div class="success">
+        <strong>✅ OneDriveが最適な理由</strong><br>
+        • 社内で既に使用している<br>
+        • 権限管理が簡単<br>
+        • 自動同期でファイル管理が楽<br>
+        • 無料で利用可能
+    </div>
+
+    <div class="method">
+        <h2>🎯 方法1: 共有フォルダ経由（推奨）</h2>
+        
+        <div class="step">
+            <h3>ステップ 1: フォルダの準備</h3>
+            <ol>
+                <li>OneDriveで新しいフォルダを作成（例：「タスク管理アプリ」）</li>
+                <li><code>public</code>フォルダの中身をすべてコピー</li>
+                <li>OneDriveフォルダに貼り付け</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>ステップ 2: 共有設定</h3>
+            <ol>
+                <li>フォルダを右クリック → <span class="highlight">共有</span></li>
+                <li><span class="highlight">特定のユーザー</span> を選択</li>
+                <li>使用したいメンバーのメールアドレスを追加</li>
+                <li>権限を <span class="highlight">表示</span> に設定（編集不要）</li>
+                <li><span class="highlight">共有</span> ボタンをクリック</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>ステップ 3: 使用方法</h3>
+            <ol>
+                <li>各メンバーが受信した共有通知からフォルダにアクセス</li>
+                <li><code>index.html</code> をダブルクリック</li>
+                <li>ブラウザで開く（Edgeなど）</li>
+                <li>ブックマークに保存して今後使用</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="method">
+        <h2>🌐 方法2: OneDrive Web経由</h2>
+        
+        <div class="step">
+            <h3>ステップ 1: Webアップロード</h3>
+            <ol>
+                <li><a href="https://onedrive.live.com" target="_blank">onedrive.live.com</a> にアクセス</li>
+                <li>フォルダを作成してファイルをアップロード</li>
+                <li>フォルダを共有設定</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>ステップ 2: アクセス方法</h3>
+            <ol>
+                <li>共有リンクから OneDrive Web にアクセス</li>
+                <li><code>index.html</code> をクリック</li>
+                <li><span class="highlight">アプリで開く</span> → <span class="highlight">ブラウザ</span> を選択</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="warning">
+        <strong>⚠️ 注意点</strong><br>
+        • データは各ユーザーのブラウザに個別保存されます<br>
+        • OneDriveのファイル自体は読み取り専用にしてください<br>
+        • 初回アクセス時はセキュリティ警告が出る場合があります
+    </div>
+
+    <div class="method">
+        <h2>🔧 トラブルシューティング</h2>
+        
+        <h3>JavaScriptが実行されない場合:</h3>
+        <ul>
+            <li>ブラウザの設定で JavaScript を有効にする</li>
+            <li>Internet Explorer の代わりに Edge や Chrome を使用</li>
+            <li>ファイルをローカルにダウンロードしてから開く</li>
+        </ul>
+
+        <h3>ファイルが開けない場合:</h3>
+        <ul>
+            <li>ファイルを右クリック → <span class="highlight">プログラムから開く</span> → <span class="highlight">ブラウザ</span></li>
+            <li>ファイルの拡張子が <code>.html</code> になっているか確認</li>
+        </ul>
+    </div>
+
+    <div class="success">
+        <h2>🚀 推奨設定</h2>
+        <ol>
+            <li><strong>管理者</strong>: OneDriveの共有フォルダを作成・管理</li>
+            <li><strong>メンバー</strong>: 表示権限でアクセス、各自ブックマーク保存</li>
+            <li><strong>更新</strong>: 管理者がファイルを更新すると全員に反映</li>
+        </ol>
+    </div>
+
+    <h2>📋 チェックリスト</h2>
+    <ul>
+        <li>□ OneDriveフォルダを作成</li>
+        <li>□ publicフォルダの内容をコピー</li>
+        <li>□ メンバーと共有設定</li>
+        <li>□ 各メンバーがアクセス確認</li>
+        <li>□ ブックマーク登録</li>
+        <li>□ 初期データ設定（マスタ管理）</li>
+    </ul>
+
+    <p><a href="index.html">← タスク管理アプリに戻る</a></p>
+</body>
+</html> 

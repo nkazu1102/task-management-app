@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔥 タスク管理システム - Firebase完全版</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Firebase設定を最初に読み込み -->
+  <script type="module" src="firebase-config.js"></script>
+  
+  <!-- カレンダー関連のスクリプト -->
+  <script src="calendar-tooltip.js" defer></script>
+  
+  <!-- Firebase対応完全版アプリケーション -->
+  <script type="module" src="app-firebase-complete.js" defer></script>
+
+  <!-- Firebase接続状態インジケーター用スタイル -->
+  <style id="firebase-styles">
+    #firebase-status {
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+    
+    .firebase-indicator {
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      z-index: 1000;
+      animation: pulse 2s infinite;
+    }
+    
+    .firebase-indicator.online {
+      background-color: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+    
+    .firebase-indicator.offline {
+      background-color: #f59e0b;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+    
+    .firebase-indicator.error {
+      background-color: #ef4444;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .loading-indicator {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      display: none;
+    }
+
+    .loading-indicator.show {
+      display: block;
+    }
+  </style>
+  
+  <!-- デバッグ用スクリプト -->
+  <script>
+    // デバッグ用のウィンドウ関数を追加
+    window.debugFirebaseApp = function() {
+      console.log('🔥 Firebase完全版アプリのデバッグ情報:');
+      
+      // Firebase接続状態
+      if (window.dataManager) {
+        console.log('✅ DataManagerインスタンス: 存在');
+        console.log('🌐 Firebase接続状態:', window.dataManager.isOnline() ? '🟢 オンライン' : '🟡 オフライン');
+        
+        // データ状況を確認
+        window.dataManager.getItem('tasks').then(tasks => {
+          console.log('📋 タスクデータ:', tasks ? `${JSON.parse(tasks).length}件` : '❌ なし');
+        });
+        
+        window.dataManager.getItem('businessCategories').then(categories => {
+          console.log('📂 カテゴリデータ:', categories ? `${JSON.parse(categories).length}件` : '❌ なし');
+        });
+        
+        window.dataManager.getItem('offices').then(offices => {
+          console.log('🏢 拠点データ:', offices ? `${Object.keys(JSON.parse(offices)).length}件` : '❌ なし');
+        });
+      } else {
+        console.log('❌ DataManagerインスタンス: 存在しない');
+      }
+      
+      // DOM要素の存在確認
+      const elements = {
+        'カレンダー日付要素': document.getElementById('calendar-days'),
+        'カレンダーコンテント': document.getElementById('calendar-content'),
+        'タスクリスト': document.querySelector('.task-list-items'),
+        'フィルターボタン': document.querySelectorAll('.filter-btn'),
+        'タブ': document.querySelectorAll('.tab')
+      };
+      
+      Object.entries(elements).forEach(([name, element]) => {
+        if (Array.isArray(element) || element instanceof NodeList) {
+          console.log(`🔍 ${name}:`, element.length > 0 ? `✅ ${element.length}個` : '❌ なし');
+        } else {
+          console.log(`🔍 ${name}:`, element ? '✅ 存在' : '❌ 存在しない');
+        }
+      });
+      
+      // グローバル関数の存在確認
+      const functions = ['updateCalendar', 'generateUUID', 'editTask', 'deleteTask'];
+      functions.forEach(func => {
+        console.log(`⚙️ ${func}関数:`, typeof window[func] === 'function' ? '✅ 存在' : '❌ 存在しない');
+      });
+    };
+
+    // Firebase接続状態を視覚的に表示
+    window.showFirebaseStatus = function() {
+      // 既存のインジケーターを削除
+      const existing = document.querySelector('.firebase-indicator');
+      if (existing) existing.remove();
+      
+      // 新しいインジケーターを作成
+      const indicator = document.createElement('div');
+      indicator.className = 'firebase-indicator';
+      
+      if (window.dataManager && window.dataManager.isOnline()) {
+        indicator.classList.add('online');
+        indicator.title = '🔥 Firebase接続中 - リアルタイム同期有効';
+      } else {
+        indicator.classList.add('offline');
+        indicator.title = '📴 オフラインモード - ローカルストレージのみ';
+      }
+      
+      document.body.appendChild(indicator);
+    };
+
+    // データ強制同期関数
+    window.forceSyncData = async function() {
+      if (window.dataManager) {
+        console.log('🔄 データの強制同期を実行します...');
+        
+        // ローディング表示
+        const loading = document.createElement('div');
+        loading.className = 'loading-indicator show';
+        loading.innerHTML = `
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-600">データ同期中...</p>
+          </div>
+        `;
+        document.body.appendChild(loading);
+        
+        try {
+          // タスクデータの再読み込み
+          const tasks = await window.dataManager.getItem('tasks');
+          console.log('📋 タスクデータ:', tasks ? `${JSON.parse(tasks).length}件` : 'なし');
+          
+          // カテゴリデータの再読み込み  
+          const categories = await window.dataManager.getItem('businessCategories');
+          console.log('📂 カテゴリデータ:', categories ? `${JSON.parse(categories).length}件` : 'なし');
+          
+          // 拠点データの再読み込み
+          const offices = await window.dataManager.getItem('offices');
+          console.log('🏢 拠点データ:', offices ? `${Object.keys(JSON.parse(offices)).length}件` : 'なし');
+          
+          console.log('✅ データ同期が完了しました');
+          
+          // 成功メッセージ
+          const success = document.createElement('div');
+          success.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 text-green-800 px-4 py-2 rounded shadow z-50';
+          success.textContent = '✅ データ同期完了';
+          document.body.appendChild(success);
+          
+          setTimeout(() => success.remove(), 3000);
+          
+        } catch (error) {
+          console.error('❌ データ同期エラー:', error);
+          
+          // エラーメッセージ
+          const errorMsg = document.createElement('div');
+          errorMsg.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-800 px-4 py-2 rounded shadow z-50';
+          errorMsg.textContent = '❌ データ同期エラー';
+          document.body.appendChild(errorMsg);
+          
+          setTimeout(() => errorMsg.remove(), 3000);
+        } finally {
+          loading.remove();
+        }
+      } else {
+        console.error('❌ DataManagerが初期化されていません');
+      }
+    };
+
+    // パフォーマンス監視
+    window.monitorPerformance = function() {
+      console.log('📊 パフォーマンス監視開始');
+      
+      const observer = new PerformanceObserver((list) => {
+        list.getEntries().forEach((entry) => {
+          if (entry.entryType === 'navigation') {
+            console.log('🚀 ページ読み込み時間:', Math.round(entry.loadEventEnd - entry.fetchStart), 'ms');
+          }
+        });
+      });
+      
+      observer.observe({ entryTypes: ['navigation'] });
+      
+      // メモリ使用量（Chromeのみ）
+      if (performance.memory) {
+        console.log('💾 メモリ使用量:', {
+          used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+          total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB',
+          limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
+        });
+      }
+    };
+
+    // 5秒ごとに接続状態を更新
+    setInterval(() => {
+      if (window.showFirebaseStatus) {
+        window.showFirebaseStatus();
+      }
+    }, 5000);
+
+    // 初期表示
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        if (window.showFirebaseStatus) {
+          window.showFirebaseStatus();
+        }
+      }, 1000);
+    });
+  </script>
+  
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-light: #a5b4fc;
+      --primary-dark: #4f46e5;
+      --primary-lightest: #eef2ff;
+      --primary-gradient-start: #4f46e5;
+      --primary-gradient-end: #7c3aed;
+      --secondary-gradient-start: #6366f1;
+      --secondary-gradient-end: #ec4899;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+    }
+
+    body {
+      font-family: "メイリオ", Meiryo, "Noto Sans JP", sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+      padding: 0.875rem;
+      color: white;
+      box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.3);
+    }
+
+    .card {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      transition: all 0.3s ease;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+      color: white;
+      padding: 0.875rem 1rem;
+      border-top-left-radius: 0.75rem;
+      border-top-right-radius: 0.75rem;
+    }
+
+    .card-body {
+      padding: 1rem;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.5rem 0.875rem;
+      border: 1px solid var(--gray-200);
+      border-radius: 0.375rem;
+      background: white;
+      color: var(--gray-800);
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-light);
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+    }
+
+    .form-input::placeholder {
+      color: var(--gray-300);
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      padding: 0.5rem 0.875rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+    }
+
+    .badge {
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      font-size: 0.625rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .badge-todo {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .badge-in-progress {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-completed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .priority-high {
+      border-left: 4px solid var(--danger);
+    }
+
+    .priority-medium {
+      border-left: 4px solid var(--warning);
+    }
+
+    .priority-low {
+      border-left: 4px solid var(--success);
+    }
+
+    .task-item {
+      border: 1px solid var(--gray-200);
+      border-radius: 0.5rem;
+      padding: 0.875rem;
+      margin-bottom: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .task-item:hover {
+      border-color: var(--primary-light);
+      box-shadow: 0 2px 8px -2px rgba(99, 102, 241, 0.2);
+    }
+
+    .filter-btn {
+      padding: 0.375rem 0.75rem;
+      border-radius: 0.375rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      border: 1px solid var(--gray-200);
+      background: white;
+      color: var(--gray-600);
+      cursor: pointer;
+    }
+
+    .filter-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .filter-btn:hover {
+      border-color: var(--primary-light);
+      background: var(--primary-lightest);
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem 0.375rem 0 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+      background: var(--gray-100);
+      color: var(--gray-600);
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: white;
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab:hover {
+      background: var(--gray-50);
+      color: var(--primary-dark);
+    }
+
+    .tab-content {
+      display: none;
+      padding: 1rem;
+      background: white;
+      border-radius: 0 0.5rem 0.5rem 0.5rem;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .calendar-day {
+      width: 2.5rem;
+      height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      transition: all 0.2s;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .calendar-day:hover {
+      background: var(--primary-lightest);
+      color: var(--primary);
+    }
+
+    .calendar-day.today {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+    }
+
+    .calendar-day.other-month {
+      color: var(--gray-300);
+    }
+
+    .calendar-day.has-tasks {
+      background: var(--primary-lightest);
+      border: 1px solid var(--primary-light);
+    }
+
+    .calendar-day.has-tasks::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 4px;
+      height: 4px;
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    .empty-task-message {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray-500);
+      font-style: italic;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 200px;
+      margin: 1rem 0;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 0.5rem;
+      background: var(--gray-200);
+      border-radius: 0.25rem;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+      transition: width 0.3s ease;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--gray-600);
+      margin-top: 0.25rem;
+    }
+
+    .timeline-container {
+      position: relative;
+      height: 60px;
+      margin: 1rem 0;
+    }
+
+    .timeline-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gray-200);
+      border-radius: 2px;
+      transform: translateY(-50%);
+    }
+
+    .timeline-item {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+
+    .timeline-item.overdue {
+      box-shadow: 0 0 0 2px var(--danger);
+    }
+
+    .timeline-item.due-soon {
+      box-shadow: 0 0 0 2px var(--warning);
+    }
+
+    .task-form-container {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .task-form-toggle {
+      background: var(--primary);
+      color: white;
+      padding: 0.875rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+
+    .task-form-toggle:hover {
+      background: var(--primary-dark);
+    }
+
+    .task-form-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .task-form-content.expanded {
+      max-height: 800px;
+    }
+
+    .master-management {
+      background: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+    }
+
+    .master-section {
+      padding: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .master-section:last-child {
+      border-bottom: none;
+    }
+
+    .master-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem;
+      margin: 0.25rem 0;
+      background: var(--gray-50);
+      border-radius: 0.25rem;
+    }
+
+    .master-item:hover {
+      background: var(--gray-100);
+    }
+
+    .assignee-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      transition: all 0.2s;
+    }
+
+    .assignee-card:hover {
+      border-color: var(--primary-light);
+      box-shadow: 0 2px 4px -1px rgba(99, 102, 241, 0.1);
+    }
+
+    .weekly-task-item {
+      background: var(--gray-50);
+      border-radius: 0.375rem;
+      padding: 0.5rem 0.75rem;
+      margin: 0.25rem 0;
+      font-size: 0.75rem;
+      border-left: 3px solid var(--primary);
+    }
+
+    .weekly-task-item.overdue {
+      border-left-color: var(--danger);
+      background: #fef2f2;
+    }
+
+    .weekly-task-item.due-soon {
+      border-left-color: var(--warning);
+      background: #fffbeb;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 0.5rem;
+      }
+      
+      .grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      
+      .stat-card {
+        padding: 0.75rem;
+      }
+      
+      .task-item {
+        padding: 0.75rem;
+      }
+      
+      .calendar-day {
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.675rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- アプリヘッダー -->
+  <div class="app-header">
+    <div class="container mx-auto px-4">
+      <div class="flex items-center justify-between">
+        <h1 class="text-lg font-bold">🔥 タスク管理システム - Firebase完全版</h1>
+        <div id="current-date" class="text-xs"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- メインコンテンツ -->
+  <div class="container mx-auto px-4 py-6">
+    <!-- タブナビゲーション -->
+    <div class="mb-6">
+      <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+        <button class="tab active" data-tab="dashboard">ダッシュボード</button>
+        <button class="tab" data-tab="tasks">タスク管理</button>
+        <button class="tab" data-tab="calendar">カレンダー</button>
+        <button class="tab" data-tab="master">マスタ管理</button>
+      </div>
+    </div>
+
+    <!-- ダッシュボードタブ -->
+    <div id="dashboard-content" class="tab-content active">
+      <!-- 統計情報 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card">
+          <div class="stat-number" id="todo-count">0</div>
+          <div class="stat-label">未着手</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="in-progress-count">0</div>
+          <div class="stat-label">進行中</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="completed-count">0</div>
+          <div class="stat-label">完了</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="completion-rate">0%</div>
+          <div class="stat-label">完了率</div>
+        </div>
+      </div>
+
+      <!-- 進捗チャート -->
+      <div class="card mb-6">
+        <div class="card-header">
+          <h2 class="text-sm font-semibold">プロジェクト進捗</h2>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="progressChart"></canvas>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%" id="progress-percentage"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 期限タイムライン -->
+      <div class="card mb-6">
+        <div class="card-header">
+          <h2 class="text-sm font-semibold">期限タイムライン</h2>
+        </div>
+        <div class="card-body">
+          <div id="due-date-timeline" class="timeline-container">
+            <div class="timeline-track"></div>
+          </div>
+          <div id="timeline-labels" class="flex justify-between text-xs text-gray-500 mt-2">
+            <span>今日</span>
+            <span id="timeline-range">7日後</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 担当者別タスク -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="text-sm font-semibold">担当者別タスク</h2>
+          </div>
+          <div class="card-body">
+            <div id="assignee-tasks"></div>
+          </div>
+        </div>
+
+        <!-- 今週のタスク -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="text-sm font-semibold">今週のタスク</h2>
+          </div>
+          <div class="card-body">
+            <div id="weekly-tasks"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タスク管理タブ -->
+    <div id="tasks-content" class="tab-content">
+      <!-- タスク追加フォーム -->
+      <div class="task-form-container">
+        <div class="task-form-toggle">
+          <h2 class="text-sm font-semibold">新しいタスクを追加</h2>
+          <svg class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <div class="task-form-content">
+          <div class="card-body">
+            <form>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="form-label">タスク名</label>
+                  <input type="text" id="task-title" class="form-input" placeholder="タスク名を入力" required>
+                </div>
+                <div>
+                  <label class="form-label">優先度</label>
+                  <select id="task-priority" class="form-input">
+                    <option value="low">低</option>
+                    <option value="medium" selected>中</option>
+                    <option value="high">高</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="form-label">業務カテゴリー</label>
+                  <select id="task-category" class="form-input">
+                    <option value="">カテゴリーを選択</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">拠点</label>
+                  <select id="task-office" class="form-input">
+                    <option value="">拠点を選択</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="form-label">メイン担当者</label>
+                  <select id="task-main-assignee" class="form-input">
+                    <option value="">担当者を選択</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">期限</label>
+                  <input type="date" id="task-due-date" class="form-input">
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label class="form-label">サブ担当者（複数選択可）</label>
+                <div id="task-sub-assignees" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                  <!-- 動的に生成される -->
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label class="form-label">説明</label>
+                <textarea id="task-description" class="form-input" rows="3" placeholder="タスクの詳細説明"></textarea>
+              </div>
+
+              <button type="submit" class="btn-primary">タスクを追加</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- フィルターと検索 -->
+      <div class="card mb-6">
+        <div class="card-body">
+          <div class="flex flex-col md:flex-row gap-4 items-center">
+            <div class="flex-1">
+              <input type="text" id="search-tasks" class="form-input" placeholder="タスクを検索...">
+            </div>
+            <div class="flex gap-2">
+              <button class="filter-btn active" data-filter="all">すべて</button>
+              <button class="filter-btn" data-filter="todo">未着手</button>
+              <button class="filter-btn" data-filter="in-progress">進行中</button>
+              <button class="filter-btn" data-filter="completed">完了</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- タスクリスト -->
+      <div class="task-list-container">
+        <div class="task-list-items"></div>
+        <div class="empty-task-message" style="display: none;">
+          <div class="text-gray-400 mb-2">
+            <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+          </div>
+          <p>タスクがありません</p>
+          <p class="text-xs mt-1">新しいタスクを追加してください</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- カレンダータブ -->
+    <div id="calendar-content" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center justify-between">
+            <h2 class="calendar-title text-sm font-semibold">2024年1月</h2>
+            <div class="flex gap-2">
+              <button id="prev-month" class="px-2 py-1 bg-white bg-opacity-20 rounded text-xs hover:bg-opacity-30 transition-colors">
+                ←
+              </button>
+              <button id="today" class="px-2 py-1 bg-white bg-opacity-20 rounded text-xs hover:bg-opacity-30 transition-colors">
+                今日
+              </button>
+              <button id="next-month" class="px-2 py-1 bg-white bg-opacity-20 rounded text-xs hover:bg-opacity-30 transition-colors">
+                →
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- カレンダーグリッド -->
+          <div class="mb-4">
+            <div class="grid grid-cols-7 gap-1 mb-2">
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">日</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">月</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">火</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">水</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">木</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">金</div>
+              <div class="text-center text-xs font-semibold text-gray-600 py-2">土</div>
+            </div>
+            <div id="calendar-days" class="grid grid-cols-7 gap-1">
+              <!-- 動的に生成される -->
+            </div>
+          </div>
+
+          <!-- 選択した期間のタスク -->
+          <div id="calendar-period-tasks">
+            <!-- 動的に生成される -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- マスタ管理タブ -->
+    <div id="master-content" class="tab-content">
+      <div class="master-management">
+        <!-- 業務カテゴリー管理 -->
+        <div class="master-section">
+          <h3 class="text-sm font-semibold mb-3">業務カテゴリー管理</h3>
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="new-category" class="form-input flex-1" placeholder="新しいカテゴリー名">
+            <button onclick="addCategory()" class="btn-primary">追加</button>
+          </div>
+          <div id="category-list">
+            <!-- 動的に生成される -->
+          </div>
+        </div>
+
+        <!-- 拠点管理 -->
+        <div class="master-section">
+          <h3 class="text-sm font-semibold mb-3">拠点管理</h3>
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="new-office" class="form-input flex-1" placeholder="新しい拠点名">
+            <button onclick="addOffice()" class="btn-primary">追加</button>
+          </div>
+          <div id="office-assignee-list">
+            <!-- 動的に生成される -->
+          </div>
+        </div>
+
+        <!-- データ管理 -->
+        <div class="master-section">
+          <h3 class="text-sm font-semibold mb-3">データ管理</h3>
+          <div class="flex flex-wrap gap-2 mb-3">
+            <button onclick="window.forceSyncData ? window.forceSyncData() : console.log('同期関数未準備')" class="btn-primary">
+              🔄 データ同期
+            </button>
+            <button onclick="window.debugFirebaseApp ? window.debugFirebaseApp() : console.log('デバッグ関数未準備')" class="btn-primary">
+              🐛 デバッグ情報
+            </button>
+            <button onclick="window.monitorPerformance ? window.monitorPerformance() : console.log('監視関数未準備')" class="btn-primary">
+              📊 パフォーマンス監視
+            </button>
+          </div>
+          <div class="mt-3 text-xs text-gray-600">
+            <p>• データ同期: Firebase との同期を手動実行</p>
+            <p>• デバッグ情報: アプリケーションの状態をコンソールに出力</p>
+            <p>• パフォーマンス監視: ページ読み込み時間とメモリ使用量を監視</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 

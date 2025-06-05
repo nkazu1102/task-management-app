@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タスク管理アプリ - デプロイメントガイド</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .method { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .pros { color: #059669; }
+        .cons { color: #dc2626; }
+        code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
+        .highlight { background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>📋 タスク管理アプリ - 全員使用ガイド</h1>
+    
+    <div class="highlight">
+        <strong>⚠️ 重要</strong><br>
+        このアプリは各ユーザーのブラウザにデータを保存します。<br>
+        共有データが必要な場合は、サーバー版の検討をお勧めします。
+    </div>
+
+    <div class="method">
+        <h2>🌐 方法1: Netlify（最も簡単・推奨）</h2>
+        <div class="pros">✅ メリット: 無料、簡単、即座に使用可能</div>
+        <div class="cons">❌ デメリット: データは個人別</div>
+        
+        <h3>手順:</h3>
+        <ol>
+            <li><a href="https://netlify.com" target="_blank">netlify.com</a> でアカウント作成</li>
+            <li>「Add new site」→「Deploy manually」</li>
+            <li><code>public</code>フォルダをドラッグ&ドロップ</li>
+            <li>生成されたURLを全員に共有</li>
+        </ol>
+    </div>
+
+    <div class="method">
+        <h2>📁 方法2: 社内共有フォルダ</h2>
+        <div class="pros">✅ メリット: 社内のみ、IT部門不要</div>
+        <div class="cons">❌ デメリット: ネットワークドライブアクセス必要</div>
+        
+        <h3>手順:</h3>
+        <ol>
+            <li><code>public</code>フォルダを社内共有フォルダにコピー</li>
+            <li>各ユーザーが <code>\\server\shared\taskapp\index.html</code> をブラウザで開く</li>
+            <li>ブックマークに登録推奨</li>
+        </ol>
+    </div>
+
+    <div class="method">
+        <h2>🖥️ 方法3: 社内Webサーバー</h2>
+        <div class="pros">✅ メリット: 社内専用、高速</div>
+        <div class="cons">❌ デメリット: IT部門の協力必要</div>
+        
+        <h3>手順:</h3>
+        <ol>
+            <li>IT部門に依頼してWebサーバーを設定</li>
+            <li><code>public</code>フォルダの内容をWebサーバーにアップロード</li>
+            <li>社内URL（例：<code>http://intranet/taskapp/</code>）でアクセス</li>
+        </ol>
+    </div>
+
+    <div class="method">
+        <h2>☁️ 方法4: その他クラウドサービス</h2>
+        <ul>
+            <li><strong>Vercel</strong>: Netlify同様に簡単</li>
+            <li><strong>GitHub Pages</strong>: GitHubアカウント必要</li>
+            <li><strong>Firebase Hosting</strong>: Googleアカウントで利用可能</li>
+        </ul>
+    </div>
+
+    <hr>
+    
+    <h2>💾 データ共有について</h2>
+    <p>現在の仕様では、各ユーザーのデータは個別のブラウザに保存されます。</p>
+    
+    <h3>共有データが必要な場合:</h3>
+    <ul>
+        <li>データベース連携版の開発が必要</li>
+        <li>Excel等でのデータエクスポート・インポート機能の追加</li>
+        <li>定期的なデータ同期ツールの導入</li>
+    </ul>
+
+    <h2>🚀 推奨手順</h2>
+    <ol>
+        <li><strong>Netlify</strong>で即座に全員使用開始</li>
+        <li>使用感を確認・フィードバック収集</li>
+        <li>必要に応じて共有データ機能を検討</li>
+    </ol>
+
+    <p><a href="index.html">← タスク管理アプリに戻る</a></p>
+</body>
+</html> 
