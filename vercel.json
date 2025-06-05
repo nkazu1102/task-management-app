@@ -1,17 +1,11 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "app.js", "use": "@vercel/static" },
-    { "src": "calendar-tooltip.js", "use": "@vercel/static" },
-    { "src": "*.js", "use": "@vercel/static" },
-    { "src": "*.css", "use": "@vercel/static" }
+    { "src": "public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/app.js", "dest": "/app.js" },
-    { "src": "/calendar-tooltip.js", "dest": "/calendar-tooltip.js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/public/$1" },
+    { "handle": "filesystem" }
   ],
   "headers": [
     {
