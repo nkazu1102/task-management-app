@@ -817,7 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="font-bold mb-2 border-b border-gray-200 pb-1">
             ${assignee}のタスク一覧 (${totalTasks}件)
             </div>
-          <div class="max-h-60 overflow-y-auto pr-1">
+          <div class="pr-1">
             ${taskDetails}
           </div>
         </div>
@@ -1234,97 +1234,129 @@ document.addEventListener('DOMContentLoaded', () => {
       if (overdueTasks.length === 0) {
         overdueTasksContainer.innerHTML = '<div class="text-xs text-gray-500 p-2">期限切れのタスクはありません</div>';
       } else {
-        overdueTasks.forEach(task => {
-          const daysOverdue = Math.abs(getDaysRemaining(task.dueDate));
-          
-          // タスクの優先度に基づいた色分け
-          let priorityBorderClass = 'border-green-400';
-          if (task.priority === PRIORITY.HIGH) {
-            priorityBorderClass = 'border-red-400';
-          } else if (task.priority === PRIORITY.MEDIUM) {
-            priorityBorderClass = 'border-yellow-400';
-          }
-          
-          // 担当者情報を取得
-          const assignees = task.assignee ? task.assignee.split(',').map(a => a.trim()).filter(a => a) : [];
-          let assigneeText = assignees.length > 0 ? assignees.join(', ') : '担当者なし';
-          
-          const overdueElement = document.createElement('div');
-          overdueElement.className = `p-2 mb-1 rounded border-l-2 ${priorityBorderClass} hover:bg-gray-50 relative group`;
-          
-          // タスク詳細（ホバー時に表示）
-          const hoverDetails = `
-            <div class="tooltip-content">
-              <div class="font-semibold mb-1">${task.title}</div>
-              ${task.description ? `<div class="text-xs text-gray-600 mb-1">${task.description}</div>` : ''}
-              <div class="text-xs text-red-600">期限: ${formatDate(task.dueDate)} (${daysOverdue}日超過)</div>
-              <div class="text-xs">ステータス: ${getStatusText(task.status)}</div>
-              <div class="text-xs">優先度: ${getPriorityText(task.priority)}</div>
-              <div class="text-xs">担当: ${assigneeText}</div>
-              </div>
-          `;
-          
-          overdueElement.innerHTML = `
-            <div class="flex justify-between items-center">
-              <div class="flex items-center space-x-2 max-w-[170px]">
-                <span class="text-xs text-red-500">${daysOverdue}日超過</span>
-                <h4 class="text-sm text-red-600 truncate" title="${task.title}">${task.title}</h4>
-            </div>
-              <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="p-1 text-gray-500 hover:text-blue-600 edit-overdue-task" title="編集" data-task-id="${task.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-                </button>
-                <button class="p-1 text-gray-500 hover:text-red-600 delete-overdue-task" title="削除" data-task-id="${task.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-            </div>
-          </div>
-    `;
-    
-          // ホバーイベントの設定
-          overdueElement.addEventListener('mouseenter', (e) => {
-            const tooltip = document.createElement('div');
-            tooltip.className = 'absolute z-50 bg-white rounded-md shadow-lg p-3 text-left text-xs';
-            tooltip.style.bottom = 'auto';
-            tooltip.style.top = (e.clientY + 10) + 'px';
-            tooltip.style.left = (e.clientX + 10) + 'px';
-            tooltip.style.position = 'fixed';
-            tooltip.style.minWidth = '200px';
-            tooltip.style.maxWidth = '250px';
-            tooltip.style.zIndex = '9999';
-            tooltip.style.borderTop = '2px solid #EF4444';
-            tooltip.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-            tooltip.innerHTML = hoverDetails;
+        // 期限切れタスクを日付順にソート（古い順）
+        overdueTasks
+          .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+          .forEach(task => {
+            const daysOverdue = Math.abs(getDaysRemaining(task.dueDate));
             
-            document.body.appendChild(tooltip);
-            overdueElement._tooltip = tooltip;
-          });
-          
-          overdueElement.addEventListener('mouseleave', () => {
-            if (overdueElement._tooltip) {
-              overdueElement._tooltip.remove();
-              overdueElement._tooltip = null;
+            // タスクの優先度に基づいた色分け
+            let priorityBorderClass = 'border-green-400';
+            let priorityTextClass = 'text-green-600';
+            if (task.priority === PRIORITY.HIGH) {
+              priorityBorderClass = 'border-red-400';
+              priorityTextClass = 'text-red-600';
+            } else if (task.priority === PRIORITY.MEDIUM) {
+              priorityBorderClass = 'border-yellow-400';
+              priorityTextClass = 'text-yellow-600';
             }
+            
+            // 担当者情報を取得
+            const assignees = task.assignee ? task.assignee.split(',').map(a => a.trim()).filter(a => a) : [];
+            let assigneeText = assignees.length > 0 ? assignees.join(', ') : '担当者なし';
+            
+            const overdueElement = document.createElement('div');
+            overdueElement.className = `p-2 mb-1 rounded border-l-2 ${priorityBorderClass} hover:bg-gray-50 relative group`;
+            
+            // タスク詳細（ホバー時に表示）
+            const hoverDetails = `
+              <div class="tooltip-content">
+                <div class="font-semibold mb-1">${task.title}</div>
+                ${task.description ? `<div class="text-xs text-gray-600 mb-1">${task.description}</div>` : ''}
+                <div class="text-xs text-red-600">期限: ${formatDate(task.dueDate)} (${daysOverdue}日超過)</div>
+                <div class="text-xs">ステータス: ${getStatusText(task.status)}</div>
+                <div class="text-xs">優先度: ${getPriorityText(task.priority)}</div>
+                <div class="text-xs">担当: ${assigneeText}</div>
+                </div>
+            `;
+            
+            overdueElement.innerHTML = `
+              <div class="flex justify-between items-start">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-red-500 whitespace-nowrap">${daysOverdue}日超過</span>
+                    <h4 class="text-sm font-medium text-gray-800 truncate" title="${task.title}">${task.title}</h4>
+                    
+                    <div class="flex items-center gap-3 ml-2">
+                      <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-0.5 ${priorityTextClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                        </svg>
+                        <span class="text-2xs">${getPriorityText(task.priority)}</span>
+                      </div>
+                      
+                      <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-0.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span class="text-2xs truncate max-w-[80px]" title="${assigneeText}">${assigneeText}</span>
+                      </div>
+                      
+                      <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span class="text-2xs text-red-500">${formatDate(task.dueDate)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  ${task.description ? `<div class="text-2xs text-gray-600 mt-0.5 truncate ml-1" title="${task.description}">${task.description}</div>` : ''}
+                </div>
+                <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                  <button class="p-1 text-gray-500 hover:text-blue-600 edit-overdue-task" title="編集" data-task-id="${task.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button class="p-1 text-gray-500 hover:text-red-600 delete-overdue-task" title="削除" data-task-id="${task.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            `;
+            
+            // ホバーイベントの設定
+            overdueElement.addEventListener('mouseenter', (e) => {
+              const tooltip = document.createElement('div');
+              tooltip.className = 'absolute z-50 bg-white rounded-md shadow-lg p-3 text-left text-xs';
+              tooltip.style.bottom = 'auto';
+              tooltip.style.top = (e.clientY + 10) + 'px';
+              tooltip.style.left = (e.clientX + 10) + 'px';
+              tooltip.style.position = 'fixed';
+              tooltip.style.minWidth = '200px';
+              tooltip.style.maxWidth = '250px';
+              tooltip.style.zIndex = '9999';
+              tooltip.style.borderTop = '2px solid #EF4444';
+              tooltip.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+              tooltip.innerHTML = hoverDetails;
+              
+              document.body.appendChild(tooltip);
+              overdueElement._tooltip = tooltip;
+            });
+            
+            overdueElement.addEventListener('mouseleave', () => {
+              if (overdueElement._tooltip) {
+                overdueElement._tooltip.remove();
+                overdueElement._tooltip = null;
+              }
+            });
+            
+            // 編集ボタンのイベントリスナー
+            overdueElement.querySelector('.edit-overdue-task').addEventListener('click', () => {
+              editTask(task);
+            });
+            
+            // 削除ボタンのイベントリスナー
+            overdueElement.querySelector('.delete-overdue-task').addEventListener('click', () => {
+              if (confirm('このタスクを削除してもよろしいですか？')) {
+                deleteTask(task.id);
+              }
+            });
+            
+            overdueTasksContainer.appendChild(overdueElement);
           });
-          
-          // 編集ボタンのイベントリスナー
-          overdueElement.querySelector('.edit-overdue-task').addEventListener('click', () => {
-            editTask(task);
-          });
-          
-          // 削除ボタンのイベントリスナー
-          overdueElement.querySelector('.delete-overdue-task').addEventListener('click', () => {
-            if (confirm('このタスクを削除してもよろしいですか？')) {
-              deleteTask(task.id);
-            }
-          });
-          
-          overdueTasksContainer.appendChild(overdueElement);
-        });
       }
     }
     
@@ -1726,6 +1758,33 @@ document.addEventListener('DOMContentLoaded', () => {
           return priorityOrder[a.priority] - priorityOrder[b.priority];
         })
         .forEach(task => {
+          // 期間タスクかどうかを判定
+          let isPeriodTask = false;
+          let isFirstDay = false;
+          let isLastDay = false;
+          
+          if (task.startDate && task.dueDate) {
+            isPeriodTask = true;
+            const cellDateObj = new Date(dateAttr);
+            const startDateObj = new Date(task.startDate);
+            const endDateObj = new Date(task.dueDate);
+            
+            // 日付のみを比較するために時間をリセット
+            cellDateObj.setHours(0, 0, 0, 0);
+            startDateObj.setHours(0, 0, 0, 0);
+            endDateObj.setHours(0, 0, 0, 0);
+            
+            // 初日と最終日を判定
+            isFirstDay = cellDateObj.getTime() === startDateObj.getTime();
+            isLastDay = cellDateObj.getTime() === endDateObj.getTime();
+          }
+          
+          // 期間タスクの2日目以降は表示を簡略化
+          if (isPeriodTask && !isFirstDay && !isLastDay) {
+            // 中間日は表示しない
+            return;
+          }
+          
           const taskEl = document.createElement('div');
           
           // 優先度に基づくクラス
@@ -1742,7 +1801,30 @@ document.addEventListener('DOMContentLoaded', () => {
             completedClass = 'completed';
           }
           
-          taskEl.className = `calendar-event ${priorityClass} ${completedClass}`;
+          // カテゴリーに基づくクラスを追加
+          let categoryClass = '';
+          if (task.category) {
+            // カテゴリー名から英数字のみを抽出してクラス名に使用
+            const safeCategoryName = task.category.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            categoryClass = `category-${safeCategoryName}`;
+          }
+          
+          // 期間タスクの場合、表示用のクラスを追加
+          let periodClass = '';
+          if (isPeriodTask) {
+            if (isFirstDay) {
+              periodClass = 'period-start';
+            } else if (isLastDay) {
+              periodClass = 'period-end';
+            } else {
+              periodClass = 'period-middle';
+            }
+          }
+          
+          taskEl.className = `calendar-event ${priorityClass} ${completedClass} ${categoryClass} ${periodClass}`;
+          
+          // タスクIDをデータ属性として設定
+          taskEl.setAttribute('data-id', task.id);
           
           // ステータスアイコンを追加
           let statusIcon = '';
@@ -1765,7 +1847,11 @@ document.addEventListener('DOMContentLoaded', () => {
             status: getStatusText(task.status),
             assignees: assigneeText,
             startDate: task.startDate ? formatDate(task.startDate) : '',
-            dueDate: task.dueDate ? formatDate(task.dueDate) : ''
+            dueDate: task.dueDate ? formatDate(task.dueDate) : '',
+            category: task.category || 'カテゴリーなし',
+            office: task.office || '',
+            isPeriodTask: isPeriodTask ? 'true' : 'false',
+            periodDay: isPeriodTask ? (isFirstDay ? 'start' : (isLastDay ? 'end' : 'middle')) : ''
           };
           
           // データ属性として設定
@@ -1774,103 +1860,34 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           // アイコンとタイトルを設定
-          if (task.title.length > 15) {
-            taskEl.textContent = statusIcon + task.title.substring(0, 15) + '...';
+          if (isPeriodTask) {
+            if (isFirstDay) {
+              // 初日は通常表示
+              if (task.title.length > 12) {
+                taskEl.textContent = statusIcon + task.title.substring(0, 12) + '...';
+              } else {
+                taskEl.textContent = statusIcon + task.title;
+              }
+            } else if (isLastDay) {
+              // 最終日は「(終)」を付ける
+              taskEl.textContent = `${statusIcon}${task.title.substring(0, 8)}...(終)`;
+              taskEl.style.opacity = '0.85';
+            } else {
+              // 中間日は「(続)」を付ける
+              taskEl.textContent = `${statusIcon}${task.title.substring(0, 8)}...(続)`;
+              taskEl.style.opacity = '0.75';
+            }
           } else {
-            taskEl.textContent = statusIcon + task.title;
+            // 期間タスクでない場合は通常表示
+            if (task.title.length > 12) {
+              taskEl.textContent = statusIcon + task.title.substring(0, 12) + '...';
+            } else {
+              taskEl.textContent = statusIcon + task.title;
+            }
           }
           
-          // ホバー時のツールチップ機能
-          taskEl.addEventListener('mouseenter', function(e) {
-            const tooltip = document.createElement('div');
-            tooltip.className = 'calendar-tooltip show';
-            
-            // 担当者リストを整形
-            const assigneesList = assignees.length > 0 
-              ? assignees.map(name => `<span class="tooltip-assignee">${name}</span>`).join('')
-              : '<span class="tooltip-assignee">担当者なし</span>';
-            
-            tooltip.innerHTML = `
-              <div class="tooltip-header">
-                <div class="tooltip-title">${tooltipData.title}</div>
-                ${tooltipData.description ? `<div class="tooltip-description">${tooltipData.description}</div>` : ''}
-              </div>
-              
-              <div class="tooltip-badges">
-                <span class="tooltip-badge priority-${task.priority}">${tooltipData.priority}</span>
-                <span class="tooltip-badge status-${task.status.replace('-', '-')}">${tooltipData.status}</span>
-              </div>
-              
-              <div class="tooltip-section">
-                <div class="tooltip-label">担当者</div>
-                <div class="tooltip-assignees">${assigneesList}</div>
-              </div>
-              
-              ${tooltipData.startDate || tooltipData.dueDate ? `
-                <div class="tooltip-dates">
-                  ${tooltipData.startDate ? `
-                    <div class="tooltip-date">
-                      <div class="tooltip-date-label">開始日</div>
-                      <div class="tooltip-date-value">${tooltipData.startDate}</div>
-                    </div>
-                  ` : ''}
-                  ${tooltipData.dueDate ? `
-                    <div class="tooltip-date">
-                      <div class="tooltip-date-label">期限日</div>
-                      <div class="tooltip-date-value">${tooltipData.dueDate}</div>
-                    </div>
-                  ` : ''}
-                </div>
-              ` : ''}
-            `;
-            
-            // スタイルを設定
-            tooltip.style.position = 'absolute';
-            tooltip.style.zIndex = '1000';
-            tooltip.style.pointerEvents = 'none';
-            
-            document.body.appendChild(tooltip);
-            
-            // 位置を調整
-            const rect = taskEl.getBoundingClientRect();
-            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-            
-            // 初期位置設定
-            let left = rect.left + scrollX;
-            let top = rect.bottom + scrollY + 12;
-            
-            // ツールチップのサイズを取得
-            const tooltipRect = tooltip.getBoundingClientRect();
-            
-            // 右端から外れる場合は左に移動
-            if (left + tooltipRect.width > window.innerWidth) {
-              left = window.innerWidth - tooltipRect.width - 10;
-              taskEl.classList.add('position-right');
-            }
-            
-            // 下端から外れる場合は上に移動
-            if (top + tooltipRect.height > window.innerHeight + scrollY) {
-              top = rect.top + scrollY - tooltipRect.height - 12;
-            }
-            
-            tooltip.style.left = left + 'px';
-            tooltip.style.top = top + 'px';
-            
-            // アニメーション開始
-            setTimeout(() => {
-              tooltip.classList.add('show');
-            }, 10);
-            
-            taskEl._tooltip = tooltip;
-          });
-          
-          taskEl.addEventListener('mouseleave', function() {
-            if (taskEl._tooltip) {
-              taskEl._tooltip.remove();
-              taskEl._tooltip = null;
-            }
-          });
+          // ホバー時のツールチップ機能は calendar-tooltip.js で実装
+          // カスタムデータ属性は上で設定済み
           
           // タスクのクリックイベント
           taskEl.addEventListener('click', (e) => {
@@ -1880,14 +1897,6 @@ document.addEventListener('DOMContentLoaded', () => {
           
           eventsContainer.appendChild(taskEl);
         });
-      
-      // タスクが多い場合の表示
-      if (dayTasks.length > 3) {
-        const moreEl = document.createElement('div');
-        moreEl.className = 'text-xs text-gray-500 text-center';
-        moreEl.textContent = `+${dayTasks.length - 3}件`;
-        eventsContainer.appendChild(moreEl);
-      }
     });
     
     // プラスボタンのクリックイベントを追加
@@ -1925,6 +1934,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     console.log('カレンダー更新が完了しました');
+    
+    // カレンダーツールチップを初期化
+    if (typeof window.initializeCalendarTooltips === 'function') {
+      setTimeout(() => {
+        window.initializeCalendarTooltips();
+        console.log('カレンダーツールチップを初期化しました');
+      }, 100);
+    }
   };
 
   // UUIDを生成
@@ -2241,7 +2258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   ${priorityText}のタスクを含みます
                 </div>
               </div>
-              <div class="max-h-48 overflow-y-auto">
+              <div>
                 ${taskDetails}
               </div>
             </div>
@@ -2290,7 +2307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   ${priorityText}のタスクを含みます
                 </div>
               </div>
-              <div class="max-h-48 overflow-y-auto">
+              <div>
                 ${taskDetails}
               </div>
             </div>
@@ -3092,15 +3109,15 @@ const updateCategoryList = () => {
   
   categories.forEach((category, index) => {
     const categoryElement = document.createElement('div');
-    categoryElement.className = 'group flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100 hover:shadow-md transition-all duration-200 hover:scale-105';
+    categoryElement.className = 'group flex items-center justify-between p-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100 hover:shadow-md transition-all duration-200 hover:scale-105';
     
     categoryElement.innerHTML = `
       <div class="flex items-center">
-        <div class="w-3 h-3 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mr-3"></div>
+        <div class="w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mr-2"></div>
         <span class="text-sm font-medium text-gray-800">${category}</span>
       </div>
       <button class="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-all duration-200" onclick="removeCategory(${index})" title="削除">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
       </button>
@@ -3551,6 +3568,14 @@ const updateTaskFormMainAssignee = (selectedOffice) => {
   
   // プルダウンを更新
   assignee1Select.innerHTML = '<option value="">主担当者を選択</option>';
+  
+  // 拠点全体のオプションを追加
+  const officeOption = document.createElement('option');
+  officeOption.value = selectedOffice;
+  officeOption.textContent = selectedOffice;
+  assignee1Select.appendChild(officeOption);
+  
+  // 個別の担当者を追加
   assignees.forEach(assignee => {
     const option = document.createElement('option');
     option.value = assignee;
@@ -3700,6 +3725,17 @@ const updateEditFormMainAssignee = (selectedOffice, selectedAssignee = '') => {
   
   // プルダウンを更新
   assignee1Select.innerHTML = '<option value="">主担当者を選択</option>';
+  
+  // 拠点全体のオプションを追加
+  const officeOption = document.createElement('option');
+  officeOption.value = selectedOffice;
+  officeOption.textContent = selectedOffice;
+  if (selectedAssignee === selectedOffice || selectedAssignee === `[全員] ${selectedOffice}`) {
+    officeOption.selected = true;
+  }
+  assignee1Select.appendChild(officeOption);
+  
+  // 個別の担当者を追加
   assignees.forEach(assignee => {
     const option = document.createElement('option');
     option.value = assignee;
@@ -3835,6 +3871,14 @@ const updateCalendarCreateFormMainAssignee = (selectedOffice) => {
   
   // プルダウンを更新
   assignee1Select.innerHTML = '<option value="">主担当者を選択</option>';
+  
+  // 拠点全体のオプションを追加
+  const officeOption = document.createElement('option');
+  officeOption.value = selectedOffice;
+  officeOption.textContent = selectedOffice;
+  assignee1Select.appendChild(officeOption);
+  
+  // 個別の担当者を追加
   assignees.forEach(assignee => {
     const option = document.createElement('option');
     option.value = assignee;
@@ -3941,3 +3985,232 @@ async function initializeApp() {
   
   console.log('🎉 アプリ初期化処理が完了しました');
 }
+
+// カレンダーヘッダーの直後にフィルターUIを追加
+const updateCalendar = () => {
+  // 現在の年月を取得
+  const currentDate = new Date();
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  // カレンダータイトルを更新
+  const calendarTitle = document.querySelector('.calendar-title');
+  if (calendarTitle) {
+    calendarTitle.textContent = `${year}年${month + 1}月`;
+  }
+  
+  // カレンダーフィルターUIを追加
+  const calendarHeader = document.querySelector('.calendar-header');
+  if (calendarHeader) {
+    // 既存のフィルターがあれば削除
+    const existingFilter = document.getElementById('calendar-filters');
+    if (existingFilter) {
+      existingFilter.remove();
+    }
+    
+    // フィルターUIを作成
+    const filterContainer = document.createElement('div');
+    filterContainer.id = 'calendar-filters';
+    filterContainer.className = 'mt-3 flex flex-wrap gap-2 items-center';
+    
+    // 拠点フィルター
+    const officeFilter = document.createElement('select');
+    officeFilter.id = 'calendar-office-filter';
+    officeFilter.className = 'form-input text-xs py-1 px-2 w-32';
+    officeFilter.innerHTML = '<option value="">全拠点</option>';
+    
+    // 担当者フィルター
+    const assigneeFilter = document.createElement('select');
+    assigneeFilter.id = 'calendar-assignee-filter';
+    assigneeFilter.className = 'form-input text-xs py-1 px-2 w-32';
+    assigneeFilter.innerHTML = '<option value="">全担当者</option>';
+    
+    // カテゴリーフィルター
+    const categoryFilter = document.createElement('select');
+    categoryFilter.id = 'calendar-category-filter';
+    categoryFilter.className = 'form-input text-xs py-1 px-2 w-32';
+    categoryFilter.innerHTML = '<option value="">全カテゴリー</option>';
+    
+    // フィルターラベル
+    const filterLabel = document.createElement('span');
+    filterLabel.className = 'text-xs text-gray-600';
+    filterLabel.textContent = 'フィルター:';
+    
+    // フィルターリセットボタン
+    const resetButton = document.createElement('button');
+    resetButton.className = 'text-xs text-indigo-600 hover:text-indigo-800 ml-auto';
+    resetButton.textContent = 'リセット';
+    resetButton.onclick = () => {
+      officeFilter.value = '';
+      assigneeFilter.value = '';
+      categoryFilter.value = '';
+      applyCalendarFilters();
+    };
+    
+    // フィルターコンテナに追加
+    filterContainer.appendChild(filterLabel);
+    filterContainer.appendChild(officeFilter);
+    filterContainer.appendChild(assigneeFilter);
+    filterContainer.appendChild(categoryFilter);
+    filterContainer.appendChild(resetButton);
+    
+    // カレンダーヘッダーの後に挿入
+    calendarHeader.insertAdjacentElement('afterend', filterContainer);
+    
+    // フィルターの選択肢を設定
+    updateCalendarFilters();
+    
+    // フィルター変更イベントを設定
+    officeFilter.addEventListener('change', applyCalendarFilters);
+    assigneeFilter.addEventListener('change', applyCalendarFilters);
+    categoryFilter.addEventListener('change', applyCalendarFilters);
+  }
+  
+  // カレンダー日付を生成
+  generateCalendarDays(year, month);
+  
+  // カレンダーツールチップを初期化
+  if (typeof window.initializeCalendarTooltips === 'function') {
+    setTimeout(() => {
+      window.initializeCalendarTooltips();
+    }, 100);
+  }
+};
+
+// カレンダーフィルターの選択肢を更新
+const updateCalendarFilters = () => {
+  // マスターデータを取得
+  const officesData = JSON.parse(localStorage.getItem('offices') || '[]');
+  const categoriesData = JSON.parse(localStorage.getItem('categories') || '[]');
+  
+  // タスクデータを取得
+  const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+  
+  // 拠点フィルターを更新
+  const officeFilter = document.getElementById('calendar-office-filter');
+  if (officeFilter) {
+    // 現在の選択値を保持
+    const currentValue = officeFilter.value;
+    
+    // 選択肢をクリア（最初のオプションは残す）
+    while (officeFilter.options.length > 1) {
+      officeFilter.remove(1);
+    }
+    
+    // 拠点の選択肢を追加
+    officesData.forEach(office => {
+      const option = document.createElement('option');
+      option.value = office.name;
+      option.textContent = office.name;
+      officeFilter.appendChild(option);
+    });
+    
+    // 以前の選択を復元
+    if (currentValue) {
+      officeFilter.value = currentValue;
+    }
+  }
+  
+  // カテゴリーフィルターを更新
+  const categoryFilter = document.getElementById('calendar-category-filter');
+  if (categoryFilter) {
+    // 現在の選択値を保持
+    const currentValue = categoryFilter.value;
+    
+    // 選択肢をクリア（最初のオプションは残す）
+    while (categoryFilter.options.length > 1) {
+      categoryFilter.remove(1);
+    }
+    
+    // カテゴリーの選択肢を追加
+    categoriesData.forEach(category => {
+      const option = document.createElement('option');
+      option.value = category;
+      option.textContent = category;
+      categoryFilter.appendChild(option);
+    });
+    
+    // 以前の選択を復元
+    if (currentValue) {
+      categoryFilter.value = currentValue;
+    }
+  }
+  
+  // 担当者フィルターを更新
+  const assigneeFilter = document.getElementById('calendar-assignee-filter');
+  if (assigneeFilter) {
+    // 現在の選択値を保持
+    const currentValue = assigneeFilter.value;
+    
+    // 選択肢をクリア（最初のオプションは残す）
+    while (assigneeFilter.options.length > 1) {
+      assigneeFilter.remove(1);
+    }
+    
+    // タスクから一意の担当者リストを作成
+    const uniqueAssignees = new Set();
+    tasks.forEach(task => {
+      if (task.assignee) {
+        task.assignee.split(',').forEach(assignee => {
+          const trimmed = assignee.trim();
+          if (trimmed) uniqueAssignees.add(trimmed);
+        });
+      }
+    });
+    
+    // 担当者の選択肢を追加
+    Array.from(uniqueAssignees).sort().forEach(assignee => {
+      const option = document.createElement('option');
+      option.value = assignee;
+      option.textContent = assignee;
+      assigneeFilter.appendChild(option);
+    });
+    
+    // 以前の選択を復元
+    if (currentValue) {
+      assigneeFilter.value = currentValue;
+    }
+  }
+};
+
+// カレンダーフィルターを適用
+const applyCalendarFilters = () => {
+  const officeFilter = document.getElementById('calendar-office-filter');
+  const assigneeFilter = document.getElementById('calendar-assignee-filter');
+  const categoryFilter = document.getElementById('calendar-category-filter');
+  
+  const selectedOffice = officeFilter ? officeFilter.value : '';
+  const selectedAssignee = assigneeFilter ? assigneeFilter.value : '';
+  const selectedCategory = categoryFilter ? categoryFilter.value : '';
+  
+  // すべてのタスク要素を取得
+  const taskElements = document.querySelectorAll('.calendar-event');
+  
+  taskElements.forEach(taskEl => {
+    let visible = true;
+    
+    // 拠点フィルター
+    if (selectedOffice && taskEl.getAttribute('data-office') !== selectedOffice) {
+      visible = false;
+    }
+    
+    // 担当者フィルター
+    if (visible && selectedAssignee) {
+      const assignees = taskEl.getAttribute('data-assignees') || '';
+      if (!assignees.includes(selectedAssignee)) {
+        visible = false;
+      }
+    }
+    
+    // カテゴリーフィルター
+    if (visible && selectedCategory) {
+      const category = taskEl.getAttribute('data-category') || '';
+      if (category !== selectedCategory) {
+        visible = false;
+      }
+    }
+    
+    // 表示/非表示を設定
+    taskEl.style.display = visible ? '' : 'none';
+  });
+};
