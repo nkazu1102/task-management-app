@@ -93,77 +93,120 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log(`ツールチップを設定するカレンダーイベント数: ${calendarEvents.length}`);
     
     if (calendarEvents.length === 0) {
-      console.log('カレンダーイベントが見つかりません');
+      console.log('カレンダーイベントが見つかりません。再試行します。');
+      setTimeout(window.initializeCalendarTooltips, 500);
       return;
     }
     
     // 既存のツールチップリスナーを削除
     calendarEvents.forEach(event => {
+      // 既存のイベントリスナーを削除するためにクローンを作成
       const clonedEvent = event.cloneNode(true);
-      event.parentNode.replaceChild(clonedEvent, event);
+      if (event.parentNode) {
+        event.parentNode.replaceChild(clonedEvent, event);
+      }
     });
     
     // 新しいツールチップリスナーを設定
     document.querySelectorAll('.calendar-event').forEach(event => {
+      // taskIdを設定
+      if (!event.getAttribute('data-task-id') && event.id) {
+        event.setAttribute('data-task-id', event.id);
+      }
+      
       // mouseenterイベントでツールチップを表示
-      event.addEventListener('mouseenter', function() {
+      event.addEventListener('mouseenter', function(e) {
+        // 既存のツールチップがあれば削除
+        if (this._tooltip && this._tooltip.parentNode) {
+          this._tooltip.parentNode.removeChild(this._tooltip);
+          this._tooltip = null;
+        }
+        
         // ツールチップのテキストを取得（data-title属性またはテキスト内容）
         const tooltipText = this.getAttribute('data-title') || this.textContent;
         if (!tooltipText) return;
         
-        // ツールチップのテキストを改行で分割
-        const tooltipLines = tooltipText.split('\n');
+        // データ属性から情報を取得
+        const title = this.getAttribute('data-title') || tooltipText;
+        const description = this.getAttribute('data-description') || '';
+        const status = this.getAttribute('data-status') || '';
+        const priority = this.getAttribute('data-priority') || '';
+        const assignees = this.getAttribute('data-assignees') || '';
+        const startDate = this.getAttribute('data-startdate') || '';
+        const dueDate = this.getAttribute('data-duedate') || '';
         
         // ツールチップ要素を作成
         const tooltip = document.createElement('div');
-        tooltip.className = 'calendar-event-tooltip';
-        
-        // タイトル行（最初の行）を太字で表示
-        const titleSpan = document.createElement('div');
-        titleSpan.className = 'tooltip-title';
-        titleSpan.textContent = tooltipLines[0] || '';
-        tooltip.appendChild(titleSpan);
-        
-        // 残りの行を追加
-        if (tooltipLines.length > 1) {
-          const contentDiv = document.createElement('div');
-          contentDiv.className = 'tooltip-content';
-          
-          for (let i = 1; i < tooltipLines.length; i++) {
-            const line = tooltipLines[i];
-            if (line) {
-              const lineElem = document.createElement('div');
-              lineElem.textContent = line;
-              contentDiv.appendChild(lineElem);
-            }
-          }
-          
-          tooltip.appendChild(contentDiv);
-        }
+        tooltip.className = 'absolute z-50 bg-white rounded-md shadow-lg p-3 text-left text-xs border';
         
         // 優先度に応じたスタイル
+        let borderTopColor = '#3B82F6'; // デフォルト青
         if (this.classList.contains('priority-high')) {
-          tooltip.classList.add('priority-high-tooltip');
+          borderTopColor = '#EF4444'; // 赤
         } else if (this.classList.contains('priority-medium')) {
-          tooltip.classList.add('priority-medium-tooltip');
+          borderTopColor = '#F59E0B'; // 黄
         } else if (this.classList.contains('priority-low')) {
-          tooltip.classList.add('priority-low-tooltip');
+          borderTopColor = '#10B981'; // 緑
         }
+        
+        // 内容を簡潔にまとめる
+        let tooltipContent = `
+          <div class="tooltip-content">
+            <div class="font-bold mb-2 border-b border-gray-200 pb-1">
+              ${title}
+            </div>
+        `;
+        
+        if (description) {
+          tooltipContent += `<div class="text-xs text-gray-600 mb-1">${description}</div>`;
+        }
+        
+        if (status) {
+          tooltipContent += `<div class="text-xs">ステータス: ${status}</div>`;
+        }
+        
+        if (priority) {
+          tooltipContent += `<div class="text-xs">優先度: ${priority}</div>`;
+        }
+        
+        if (assignees) {
+          tooltipContent += `<div class="text-xs">担当: ${assignees}</div>`;
+        }
+        
+        if (startDate && dueDate) {
+          tooltipContent += `<div class="text-xs">期間: ${startDate} 〜 ${dueDate}</div>`;
+        } else if (startDate) {
+          tooltipContent += `<div class="text-xs">開始日: ${startDate}</div>`;
+        } else if (dueDate) {
+          tooltipContent += `<div class="text-xs">期限: ${dueDate}</div>`;
+        }
+        
+        tooltipContent += `</div>`;
+        tooltip.innerHTML = tooltipContent;
+        
+        // スタイルを設定
+        tooltip.style.position = 'fixed';
+        tooltip.style.minWidth = '250px';
+        tooltip.style.maxWidth = '300px';
+        tooltip.style.zIndex = '9999';
+        tooltip.style.borderTop = `3px solid ${borderTopColor}`;
+        tooltip.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+        tooltip.style.pointerEvents = 'none'; // ポインターイベントを無効化
+        tooltip.style.backgroundColor = '#ffffff';
         
         // 完了タスクのスタイル
         if (this.classList.contains('completed')) {
-          tooltip.classList.add('completed-tooltip');
+          tooltip.style.opacity = '0.7';
         }
         
         // ツールチップの位置を調整
         const rect = this.getBoundingClientRect();
-        tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
-        tooltip.style.left = `${rect.left + window.scrollX}px`;
+        tooltip.style.top = (e.clientY - 10) + 'px';
+        tooltip.style.left = (e.clientX + 15) + 'px';
         
         // 画面右端で位置調整
         if (rect.left + 300 > window.innerWidth) {
-          tooltip.style.left = 'auto';
-          tooltip.style.right = `${window.innerWidth - rect.right - window.scrollX + 5}px`;
+          tooltip.style.left = (window.innerWidth - 310) + 'px';
         }
         
         // ツールチップを表示
@@ -182,15 +225,18 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       
       // クリックイベントでタスク編集
-      event.addEventListener('click', function() {
-        // タスク編集ダイアログを開く（例示的なコード）
-        console.log('タスクがクリックされました:', this.textContent);
+      event.addEventListener('click', function(e) {
+        // タスク編集ダイアログを開く
+        e.stopPropagation(); // イベント伝播を停止
         
         // タスクのIDを取得
         const taskId = this.getAttribute('data-task-id');
-        if (taskId && typeof editTask === 'function') {
+        if (taskId && window.editTask && window.tasks) {
           // 編集ダイアログを開く
-          editTask(taskId);
+          const taskData = window.tasks.find(t => t.id === taskId);
+          if (taskData) {
+            window.editTask(taskData);
+          }
         }
       });
     });
@@ -200,57 +246,15 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // スタイルを動的に追加
   function addTooltipStyles() {
+    // 既存のスタイルを削除
+    const existingStyle = document.getElementById('calendar-tooltip-styles');
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+    
     const style = document.createElement('style');
+    style.id = 'calendar-tooltip-styles';
     style.textContent = `
-      /* ツールチップの基本スタイル */
-      .calendar-event-tooltip {
-        position: absolute;
-        z-index: 9999;
-        background-color: #fff;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        padding: 8px;
-        max-width: 250px;
-        font-size: 0.8rem;
-        white-space: pre-wrap;
-        word-break: break-word;
-        pointer-events: none;
-        border-top: 3px solid #6366f1;
-      }
-      
-      /* タイトルのスタイル */
-      .tooltip-title {
-        font-weight: bold;
-        margin-bottom: 4px;
-        padding-bottom: 4px;
-        border-bottom: 1px solid #eee;
-      }
-      
-      /* コンテンツのスタイル */
-      .tooltip-content {
-        font-size: 0.75rem;
-        line-height: 1.4;
-      }
-      
-      /* 優先度に応じたスタイル */
-      .priority-high-tooltip {
-        border-top-color: #ef4444;
-      }
-      
-      .priority-medium-tooltip {
-        border-top-color: #f59e0b;
-      }
-      
-      .priority-low-tooltip {
-        border-top-color: #10b981;
-      }
-      
-      /* 完了タスクのスタイル */
-      .completed-tooltip {
-        opacity: 0.7;
-      }
-      
       /* カレンダーイベントのスタイル */
       .calendar-event {
         cursor: pointer;
@@ -296,6 +300,15 @@ document.addEventListener('DOMContentLoaded', function() {
   // スタイルを追加
   addTooltipStyles();
   
-  // 初期化を実行
+  // 初期化を実行（カレンダーの読み込み後）
   setTimeout(window.initializeCalendarTooltips, 1000);
+  
+  // カレンダー更新後に再初期化するためのイベントリスナーを追加
+  const originalUpdateCalendar = window.updateCalendar;
+  if (originalUpdateCalendar) {
+    window.updateCalendar = function() {
+      originalUpdateCalendar();
+      setTimeout(window.initializeCalendarTooltips, 100);
+    };
+  }
 }); 
