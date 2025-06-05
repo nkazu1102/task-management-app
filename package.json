@@ -1,0 +1,9 @@
+{
+  "name": "task-management-app",
+  "version": "1.0.0",
+  "description": "Task Management Application",
+  "scripts": {
+    "build": "echo 'No build step required for static site'"
+  },
+  "dependencies": {}
+} 
